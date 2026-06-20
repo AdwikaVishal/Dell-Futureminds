@@ -28,17 +28,23 @@ def _task_to_scoring_dict(task: Task) -> dict[str, Any]:
 
 
 def _apply_scores(tasks: list[Task], scored_items: list[dict[str, Any]]) -> list[RankedTask]:
-    score_map: dict[str, tuple[float, str]] = {}
+    score_map: dict[str, tuple[float, str, dict]] = {}
     for item in scored_items:
         task_id = str(item.get("id", ""))
         score = float(item.get("score", 0))
         rationale = str(item.get("rationale", ""))
-        score_map[task_id] = (score, rationale)
+        breakdown = item.get("score_breakdown", {})
+        score_map[task_id] = (score, rationale, breakdown)
 
     result: list[RankedTask] = []
     for task in tasks:
-        score, rationale = score_map.get(task.id, (0.0, "Score not computed."))
-        result.append(RankedTask(**task.model_dump(exclude={'rank', 'score', 'rationale'}), score=score, rationale=rationale))
+        score, rationale, breakdown = score_map.get(task.id, (0.0, "Score not computed.", {}))
+        result.append(RankedTask(
+            **task.model_dump(exclude={'rank', 'score', 'rationale', 'score_breakdown'}),
+            score=score,
+            rationale=rationale,
+            score_breakdown=breakdown,
+        ))
 
     result.sort(key=lambda t: t.score, reverse=True)
     return result

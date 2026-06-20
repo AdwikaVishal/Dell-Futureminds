@@ -59,7 +59,15 @@ class AgentOrchestrator:
                     title = item.get("title", "")
                     if source_type == "emails":
                         title = f"Email: {title}" if title else "Email: (no subject)"
-                    st = item.get("source_type", source_type)
+                    SOURCE_TYPE_MAP = {
+    "defects": "defect",
+    "emails": "email",
+    "jira": "jira",
+    "github": "github",
+    "slack": "slack",
+    "transcript": "transcript",
+}
+st = SOURCE_TYPE_MAP.get(source_type, item.get("source_type", source_type))
 
                     normalized.append(Task(
                         id=item_id,
