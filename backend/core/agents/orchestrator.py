@@ -38,13 +38,19 @@ class AgentOrchestrator:
         return context
 
     def _normalize_inline(self, context: dict[str, Any]) -> None:
-        """Convert all connector data to Task objects.
-
-        Data arrives already normalized from IngestionAgent (via connector.normalize()).
-        """
+        """Convert all connector data to Task objects."""
         try:
             normalized = []
             source_types = ["jira", "defects", "emails", "github", "slack", "transcript"]
+
+            SOURCE_TYPE_MAP = {
+                "defects": "defect",
+                "emails": "email",
+                "jira": "jira",
+                "github": "github",
+                "slack": "slack",
+                "transcript": "transcript",
+            }
 
             for source_type in source_types:
                 items = context.get(source_type, [])
@@ -59,15 +65,7 @@ class AgentOrchestrator:
                     title = item.get("title", "")
                     if source_type == "emails":
                         title = f"Email: {title}" if title else "Email: (no subject)"
-                    SOURCE_TYPE_MAP = {
-    "defects": "defect",
-    "emails": "email",
-    "jira": "jira",
-    "github": "github",
-    "slack": "slack",
-    "transcript": "transcript",
-}
-st = SOURCE_TYPE_MAP.get(source_type, item.get("source_type", source_type))
+                    st = SOURCE_TYPE_MAP.get(source_type, item.get("source_type", source_type))
 
                     normalized.append(Task(
                         id=item_id,
