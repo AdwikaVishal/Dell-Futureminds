@@ -1,0 +1,104 @@
+{
+    "tickets": [
+      {
+        "id": "JIRA-1234",
+        "title": "Payment upload fails for files >10MB on checkout page",
+        "status": "In Progress",
+        "priority": "P1",
+        "assignee": "you",
+        "due_date": "2026-06-19",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1198",
+        "title": "Add pagination to order history API",
+        "status": "To Do",
+        "priority": "P2",
+        "assignee": "you",
+        "due_date": "2026-06-25",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1201",
+        "title": "Migrate auth tokens to rotating refresh scheme",
+        "status": "To Do",
+        "priority": "P2",
+        "assignee": "you",
+        "due_date": "2026-06-26",
+        "sprint": "Sprint 24",
+        "dependencies": ["JIRA-1198"]
+      },
+      {
+        "id": "JIRA-1150",
+        "title": "Fix flaky integration test in billing-service CI",
+        "status": "In Progress",
+        "priority": "P3",
+        "assignee": "you",
+        "due_date": "2026-06-30",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1212",
+        "title": "Implement rate limiting on /api/v2/search",
+        "status": "To Do",
+        "priority": "P2",
+        "assignee": "you",
+        "due_date": "2026-06-24",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1220",
+        "title": "Carry-over: refactor notification service queue consumer",
+        "status": "In Progress",
+        "priority": "P3",
+        "assignee": "you",
+        "due_date": "2026-06-28",
+        "sprint": "Sprint 23",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1225",
+        "title": "Add dark mode toggle to settings page",
+        "status": "To Do",
+        "priority": "P3",
+        "assignee": "you",
+        "due_date": "2026-07-02",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1230",
+        "title": "Investigate memory leak in report-generation worker",
+        "status": "To Do",
+        "priority": "P1",
+        "assignee": "you",
+        "due_date": "2026-06-20",
+        "sprint": "Sprint 24",
+        "dependencies": []
+      },
+      {
+        "id": "JIRA-1188",
+        "title": "Write integration tests for new webhook dispatcher",
+        "status": "To Do",
+        "priority": "P2",
+        "assignee": "you",
+        "due_date": "2026-06-27",
+        "sprint": "Sprint 24",
+        "dependencies": ["JIRA-1212"]
+      },
+      {
+        "id": "JIRA-1240",
+        "title": "Update API docs for v2 search rate limit changes",
+        "status": "To Do",
+        "priority": "P3",
+        "assignee": "you",
+        "due_date": "2026-07-05",
+        "sprint": "Sprint 24",
+        "dependencies": ["JIRA-1212"]
+      }
+    ]
+  }

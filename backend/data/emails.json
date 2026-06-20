@@ -1,0 +1,23 @@
+[
+  {
+    "id": "email_001",
+    "subject": "RE: Q3 planning meeting",
+    "from": "manager@company.com",
+    "body": "Hi team, we need to finalize the Q3 roadmap by Friday. Alice, can you draft the engineering timeline? Bob, please review the feature request doc. Thanks!",
+    "timestamp": "2026-06-19T09:15:00Z"
+  },
+  {
+    "id": "email_002",
+    "subject": "Production hotfix needed",
+    "from": "oncall@company.com",
+    "body": "The payment gateway integration is timing out for 10% of users. This needs immediate attention — can someone from the backend team investigate?",
+    "timestamp": "2026-06-19T10:30:00Z"
+  },
+  {
+    "id": "email_003",
+    "subject": "Code review request: auth module",
+    "from": "teammate@company.com",
+    "body": "I've pushed the auth module changes to branch 'feature/auth-v2'. Could someone review the PR by EOD? It blocks the dashboard work.",
+    "timestamp": "2026-06-19T11:00:00Z"
+  }
+]

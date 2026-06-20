@@ -1,0 +1,100 @@
+{
+    "emails": [
+      {
+        "email_id": "EML-001",
+        "from": "sarah.chen@company.com",
+        "from_name": "Sarah Chen, VP Engineering",
+        "subject": "Customer escalation - urgent",
+        "received_at": "2026-06-18T08:14:00Z",
+        "body": "Hi team,\n\nWanted to flag something that came up on yesterday's call with Meridian Retail. Their checkout flow is breaking for any customer trying to upload invoices over 10MB - apparently this is happening at scale on their end and finance is now involved. I know there's a payment-service incident open on this already, but given Meridian represents about 8% of our enterprise ARR I'd like this treated as the top priority until it's resolved. Please make sure whoever owns this gets it fixed today if at all possible and loop me in directly once it's deployed.\n\nThanks,\nSarah"
+      },
+      {
+        "email_id": "EML-002",
+        "from": "devops-alerts@company.com",
+        "from_name": "DevOps Alerts",
+        "subject": "Weekly infra cost report",
+        "received_at": "2026-06-17T06:00:00Z",
+        "body": "Automated weekly report: total cloud spend this week was $14,230, up 3% from last week. Largest contributors: compute (42%), storage (28%), networking (18%). No action required, informational only."
+      },
+      {
+        "email_id": "EML-003",
+        "from": "raj.patel@company.com",
+        "from_name": "Raj Patel",
+        "subject": "Re: Re: Sprint planning notes",
+        "received_at": "2026-06-17T14:22:00Z",
+        "body": "Thanks for the notes from yesterday. Quick recap of what we covered, mostly just confirming what we already knew about velocity trends and the usual capacity planning stuff for next sprint, nothing too exciting here honestly. Oh, one thing I almost forgot to mention - can you also update the API docs once the rate limiting change goes out? Marketing keeps asking when the new limits take effect and I'd rather point them at docs than answer individually each time. No rush, just before end of sprint would be great. Anyway, see everyone at standup tomorrow."
+      },
+      {
+        "email_id": "EML-004",
+        "from": "noreply@calendly.com",
+        "from_name": "Calendly",
+        "subject": "Meeting confirmed: 1:1 with manager",
+        "received_at": "2026-06-17T09:00:00Z",
+        "body": "Your meeting '1:1 with manager' has been confirmed for Friday at 2:00 PM. Add to calendar."
+      },
+      {
+        "email_id": "EML-005",
+        "from": "priya.nair@company.com",
+        "from_name": "Priya Nair",
+        "subject": "Notification service - heads up",
+        "received_at": "2026-06-16T16:45:00Z",
+        "body": "Hey, just got off a call with the notifications team about the queue backups during peak hours. Wanted to give you context before you dig into it. Long story short, we think it's related to the consumer refactor that's already in your backlog from last sprint, so good news is you might be solving two things at once. We profiled it a bit and it looks like the queue depth spikes correlate almost exactly with the 6-7pm traffic window. I don't think this needs to be urgent today but it's been getting worse over the last week, so probably worth prioritizing before it becomes a P1. Let me know if you want to pair on it."
+      },
+      {
+        "email_id": "EML-006",
+        "from": "it-support@company.com",
+        "from_name": "IT Support",
+        "subject": "Scheduled maintenance window this weekend",
+        "received_at": "2026-06-16T11:00:00Z",
+        "body": "VPN and internal tools will be unavailable Saturday 2-4 AM for scheduled maintenance. No action needed unless you're working during that window."
+      },
+      {
+        "email_id": "EML-007",
+        "from": "marcus.lee@company.com",
+        "from_name": "Marcus Lee",
+        "subject": "Webhook retries - found something weird",
+        "received_at": "2026-06-16T13:30:00Z",
+        "body": "Was debugging an unrelated issue and noticed the webhook dispatcher seems to just silently drop events once it hits max retries, no logging, no dead-letter queue, nothing. Customers downstream have no idea their webhook didn't fire. I filed INC0045302 for it but figured I'd give you the heads up directly too since I know you own that service. Might be worth getting ahead of this before a customer notices and escalates - happy to pair if useful, just let me know."
+      },
+      {
+        "email_id": "EML-008",
+        "from": "hr@company.com",
+        "from_name": "HR Team",
+        "subject": "Benefits enrollment reminder",
+        "received_at": "2026-06-15T08:00:00Z",
+        "body": "This is a reminder that open enrollment for benefits closes June 30th. Please log into the HR portal to make your selections if you haven't already."
+      },
+      {
+        "email_id": "EML-009",
+        "from": "diane.wu@company.com",
+        "from_name": "Diane Wu, Eng Manager",
+        "subject": "Quick sync recap + one ask",
+        "received_at": "2026-06-15T17:10:00Z",
+        "body": "Hey, recapping our sync from earlier. Mostly covered headcount planning for next quarter which is still up in the air, plus the usual roadmap check-in. One actual ask buried in here - can you own writing up integration tests for the new webhook dispatcher? QA flagged that there's basically no test coverage on it right now and it's becoming a risk given how many partners depend on it. Diane, can you make sure this gets done before end of sprint? Appreciate it.\n\n- Diane"
+      },
+      {
+        "email_id": "EML-010",
+        "from": "no-reply@github.com",
+        "from_name": "GitHub",
+        "subject": "[company/payment-service] PR #482 approved",
+        "received_at": "2026-06-15T10:05:00Z",
+        "body": "Your pull request #482 'Fix decimal rounding in tax calculator' has been approved by 2 reviewers and is ready to merge."
+      },
+      {
+        "email_id": "EML-011",
+        "from": "tom.becker@company.com",
+        "from_name": "Tom Becker, Site Reliability",
+        "subject": "Memory leak in reporting worker - context",
+        "received_at": "2026-06-14T19:20:00Z",
+        "body": "Saw the alert come through about the reporting worker restarting itself every couple hours. Pulled the heap dumps and it looks like it's accumulating unclosed connections somewhere in the export path, classic leak pattern. Haven't had time to dig further but wanted to get this to you with what I found so far since I know it's assigned to you now. SLA on this one is tight so figured the context would help you move faster rather than starting from zero. Tom, can you also send me the heap dump files separately so I can take a closer look in parallel? Want a second set of eyes on this given the SLA.\n\nThanks,\nTom"
+      },
+      {
+        "email_id": "EML-012",
+        "from": "newsletter@techdigest.com",
+        "from_name": "TechDigest Weekly",
+        "subject": "This week in engineering: AI agents, Rust adoption, and more",
+        "received_at": "2026-06-14T07:00:00Z",
+        "body": "This week's top stories: the rise of agentic AI in production systems, why more teams are adopting Rust for performance-critical paths, and a deep dive into vector database benchmarks. Read more on our site."
+      }
+    ]
+  }
