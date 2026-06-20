@@ -6,6 +6,8 @@ from typing import Any, Optional
 
 from core.llm_client import call_llm
 from core.prompts import build_daily_plan_prompt, build_prioritization_prompt, build_reprioritize_prompt
+from core.tracer import trace
+from core.state import get_user_preference_boosts
 from models.task import Task, DailyPlan, RankedTask, Alert
 
 
@@ -50,6 +52,34 @@ def _apply_scores(tasks: list[Task], scored_items: list[dict[str, Any]]) -> list
     return result
 
 
+def _match_preference(title: str, preference: str) -> bool:
+    title_lower = title.lower()
+    keyword_map = {
+        "prefer_security": ["security", "audit", "token", "vulnerability", "encrypt"],
+        "prefer_ui_bugs": ["ui", "dashboard", "safari", "render", "chart", "dark mode"],
+        "prefer_backend": ["database", "migration", "api", "sync", "websocket", "backend"],
+        "prefer_performance": ["memory", "leak", "latency", "performance", "timeout"],
+        "prefer_integrations": ["github", "jira", "slack", "connector", "sync"],
+        "prefer_refactors": ["refactor", "cleanup", "docs", "documentation", "test"],
+    }
+    keywords = keyword_map.get(preference, [])
+    return any(kw in title_lower for kw in keywords)
+
+
+def _apply_preference_boosts(ranked: list[RankedTask]) -> list[RankedTask]:
+    boosts = get_user_preference_boosts()
+    if not boosts:
+        return ranked
+
+    for rt in ranked:
+        for pref, multiplier in boosts.items():
+            if _match_preference(rt.title, pref):
+                rt.score = round(rt.score * multiplier, 1)
+    ranked.sort(key=lambda t: t.score, reverse=True)
+    return ranked
+
+
+@trace("prioritization")
 async def prioritize(tasks: list[Task]) -> list[RankedTask]:
     if not tasks:
         return []
@@ -70,7 +100,9 @@ async def prioritize(tasks: list[Task]) -> list[RankedTask]:
     if not scored_items:
         return [RankedTask(**t.model_dump(exclude={'rank', 'score', 'rationale'}), score=0.0, rationale="Scoring unavailable.") for t in tasks]
 
-    return _apply_scores(tasks, scored_items)
+    ranked = _apply_scores(tasks, scored_items)
+    ranked = _apply_preference_boosts(ranked)
+    return ranked
 
 
 async def get_daily_plan(
@@ -167,4 +199,5 @@ def build_daily_plan_from_tasks(
         deferred=deferred,
         blocked=blocked,
         alerts=alerts or [],
+        ranked_tasks=ranked_list,
     )

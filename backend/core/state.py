@@ -134,3 +134,35 @@ def get_recent_traces(limit: int = 50) -> list[dict]:
         return [dict(r) for r in rows]
     except Exception:
         return []
+
+
+def save_feedback(task_id: str, action: str, preference: str):
+    _ensure_db()
+    conn = _get_db()
+    conn.execute(
+        "INSERT INTO user_feedback (task_id, action, user_preference, timestamp) VALUES (?, ?, ?, datetime('now'))",
+        (task_id, action, preference),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_preference_boosts() -> dict[str, float]:
+    _ensure_db()
+    conn = _get_db()
+    rows = conn.execute("""
+        SELECT user_preference, 
+               SUM(CASE WHEN action = 'upvote' THEN 1 WHEN action = 'downvote' THEN -1 ELSE 0 END) as net
+        FROM user_feedback
+        GROUP BY user_preference
+        HAVING net > 0
+        ORDER BY net DESC
+    """).fetchall()
+    conn.close()
+    boosts: dict[str, float] = {}
+    for row in rows:
+        pref = row["user_preference"]
+        net = row["net"]
+        multiplier = 1.0 + min(net, 5) * 0.04
+        boosts[pref] = round(multiplier, 3)
+    return boosts

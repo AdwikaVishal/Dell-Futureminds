@@ -7,7 +7,9 @@ import { PriorityPill } from "../shared/PriorityPill";
 import { SourceBadge } from "../shared/SourceBadge";
 import { AIRationale } from "../shared/AIRationale";
 import { SparkleIcon } from "../shared/SparkleIcon";
-import { getPlan, refreshPlan, DailyPlan, RankedTask, WebSocketEvent } from "../../api/taskpilot";
+import { DependencyGraph } from "../shared/DependencyGraph";
+import { FeedbackButton } from "../shared/FeedbackButton";
+import { getPlan, refreshPlan, getTasks, DailyPlan, RankedTask, WebSocketEvent } from "../../api/taskpilot";
 import { useWebSocket } from "../../hooks/useWebSocket";
 
 const TEXT_PRIMARY = "#EDF3EF";
@@ -21,6 +23,9 @@ export function Screen1() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [injecting, setInjecting] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
 
   const handleWsEvent = useCallback((event: WebSocketEvent) => {
     if (event.event === "plan_updated" || event.event === "priorities_updated") {
@@ -34,15 +39,49 @@ export function Screen1() {
     setLoading(true);
     try {
       const p = await getPlan();
+      console.log("[DailyPlan] API response:", p);
       setPlan(p);
-    } catch {
-      // Will show empty state
+    } catch (err) {
+      console.error("[DailyPlan] Fetch failed:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { refresh() }, []);
+
+  useEffect(() => {
+    getTasks().then(setAllTasks).catch(() => {});
+  }, []);
+
+  const handleInjectP1 = async () => {
+    setInjecting(true);
+    try {
+      const res = await fetch("/api/inject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "P1 Production Outage - Login Service Down",
+          description: "Users cannot authenticate. Affects all customers.",
+          source_type: "injected",
+          priority: "P1",
+          deadline: new Date(Date.now() + 3600000).toISOString(),
+        }),
+      });
+      const updatedPlan = await res.json();
+      console.log("[Inject] response:", updatedPlan);
+      setPlan(updatedPlan);
+      const injectedTask = [...(updatedPlan.top_priorities ?? []), ...(updatedPlan.do_next ?? [])].find((t: any) => t.source === "injected" || t.source_type === "injected");
+      if (injectedTask) {
+        setHighlightedId(injectedTask.id);
+        setTimeout(() => setHighlightedId(null), 3000);
+      }
+    } catch (err) {
+      console.error("[Inject] failed:", err);
+    } finally {
+      setInjecting(false);
+    }
+  };
 
   const top3 = plan?.top_priorities ?? [];
   const rest = useMemo(() => {
@@ -90,7 +129,11 @@ export function Screen1() {
                     </Card>
                   )}
                   {top3.map((task: any, i: number) => (
-                    <Card key={task.id} style={{ padding: "16px 18px" }}>
+                    <Card key={task.id} style={{
+                      padding: "16px 18px",
+                      border: highlightedId === task.id ? `2px solid #CC3333` : `1px solid ${BORDER}`,
+                      transition: "border 0.3s",
+                    }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -106,6 +149,7 @@ export function Screen1() {
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
                           <PriorityPill level={(task.priority ?? "P3") as any} />
+                          <FeedbackButton task={task} compact />
                           {task.deadline && <span style={{ color: TEXT_MUTED, fontSize: 11 }}>Due {task.deadline}</span>}
                         </div>
                       </div>
@@ -131,7 +175,11 @@ export function Screen1() {
                     </Card>
                   )}
                   {rest.map((task: any) => (
-                    <Card key={task.id} style={{ padding: "12px 16px" }}>
+                    <Card key={task.id} style={{
+                      padding: "12px 16px",
+                      border: highlightedId === task.id ? `2px solid #CC3333` : `1px solid ${BORDER}`,
+                      transition: "border 0.3s",
+                    }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <button onClick={() => setChecked(p => ({ ...p, [task.id]: !p[task.id] }))}
                           style={{ background: "none", border: "none", cursor: "pointer", color: TEXT_MUTED, padding: 0, flexShrink: 0 }}>
@@ -195,8 +243,31 @@ export function Screen1() {
                   </div>
                 ))}
               </Card>
+
+              <button onClick={handleInjectP1} disabled={injecting}
+                style={{
+                  background: injecting ? "#5a1a1a" : "#8B1A1A",
+                  color: "#EDF3EF",
+                  padding: "10px 14px",
+                  border: `1px solid ${injecting ? "#3a0a0a" : "#CC3333"}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: injecting ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "background 0.2s",
+                }}>
+                {injecting ? "Injecting..." : "Inject P1 Defect"}
+              </button>
             </div>
           </div>
+          )}
+
+          {plan && (
+            <DependencyGraph tasks={allTasks} />
           )}
         </main>
       </div>

@@ -10,6 +10,7 @@ from core.agents.orchestrator import AgentOrchestrator
 from core.alert_engine import check_alerts
 
 from core.prioritizer import reprioritize, build_daily_plan_from_tasks
+from core.normalizer import _infer_team
 from core.tracer import trace
 from core.grounding import verify_grounding
 from core.qa import answer_question as qa_answer_question
@@ -68,6 +69,8 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
             priority=new_task_data.priority,
             deadline=new_task_data.deadline,
             owner=new_task_data.owner,
+            assignee=new_task_data.owner,
+            team=_infer_team(new_task_data.owner),
             status="open",
             dependencies=[],
             raw_text=new_task_data.title + " " + (new_task_data.description or ""),

@@ -1,0 +1,159 @@
+{
+  "expected_action_items": [
+    {
+      "id": "email_001",
+      "title": "Email: Sprint review prep \u00e2\u20ac\u201d need dashboard by Friday",
+      "source_sentence": "Hey team, the stakeholder demo is on Friday. We need the live metrics dashboard ready with real data. Can we prioritize this over the new feature work",
+      "source_type": "email"
+    },
+    {
+      "id": "email_004",
+      "title": "Email: URGENT: Production incident \u00e2\u20ac\u201d login service down",
+      "source_sentence": "Users cannot log in. The auth service is returning 503. Need immediate investigation.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_009",
+      "title": "Email: RE: Security audit findings",
+      "source_sentence": "The Q2 security audit identified 3 critical vulnerabilities. Fixes required by next sprint.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_006",
+      "title": "Email: Database migration script \u00e2\u20ac\u201d QA needed",
+      "source_sentence": "The v2 schema migration script is ready for QA review. Affects users, tasks, and analytics tables.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_008",
+      "title": "Email: VP escalation \u00e2\u20ac\u201d customer login issue (JIRA-1234)",
+      "source_sentence": "The VP is asking about the login bug. Need an update by noon.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_005",
+      "title": "Email: Design review for new onboarding flow",
+      "source_sentence": "The new onboarding designs are ready for review. Please provide feedback by EOD Wednesday.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_007",
+      "title": "Email: Weekly sync agenda \u00e2\u20ac\u201d June 20",
+      "source_sentence": "Agenda: 1) Sprint progress 2) Blockers 3) Demo prep 4) Capacity planning",
+      "source_type": "email"
+    },
+    {
+      "id": "email_010",
+      "title": "Email: Customer demo prep \u00e2\u20ac\u201d Adwika leading the walkthrough",
+      "source_sentence": "Adwika, you're leading the customer demo on Monday. Please prepare the walkthrough script.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_012",
+      "title": "Email: Team lunch \u00e2\u20ac\u201d Friday at 1pm",
+      "source_sentence": "We're ordering lunch on Friday. Please RSVP with your preference.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_002",
+      "title": "Email: RE: API rate limiting \u00e2\u20ac\u201d we're hitting GitHub limits",
+      "source_sentence": "We're getting 429s from GitHub API during sync. Need to implement backoff or reduce poll frequency.",
+      "source_type": "email"
+    },
+    {
+      "id": "email_008-2",
+      "title": "prioritize this \u00e2\u20ac\u201d it's a P1 now due to customer escalation",
+      "source_sentence": "prioritize this \u00e2\u20ac\u201d it's a P1 now due to customer escalation",
+      "source_type": "email"
+    },
+    {
+      "id": "email_003",
+      "title": "Email: New feature request: Dark mode toggle",
+      "source_sentence": "Users are requesting dark mode for the dashboard. Do we have capacity this sprint?",
+      "source_type": "email"
+    },
+    {
+      "id": "email_011",
+      "title": "Email: Question: How does the deduplication work?",
+      "source_sentence": "Can someone explain the dedup logic? I'm seeing duplicate tasks from Jira and email.",
+      "source_type": "email"
+    },
+    {
+      "id": "transcript_001",
+      "title": "Sprint Planning \u2014 June 19, 2026",
+      "source_sentence": "TaskPilot Sprint Planning \u00e2\u20ac\u201d June 19, 2026\nAttendees: Sarah (PM), Mike (Tech Lead), Jen (Backend), Mia (Design), Alex (Frontend)\nDuration: 45 minutes",
+      "source_type": "transcript"
+    },
+    {
+      "id": "email_001-0",
+      "title": "loop in finance before Friday so the invoice doesn't get stuck again? Otherwise nothing else to add",
+      "source_sentence": "loop in finance before Friday so the invoice doesn't get stuck again? Otherwise nothing else to add",
+      "source_type": "email"
+    },
+    {
+      "id": "email_001-1",
+      "title": "make sure this gets done before end of sprint? Appreciate it",
+      "source_sentence": "make sure this gets done before end of sprint? Appreciate it",
+      "source_type": "email"
+    },
+    {
+      "id": "email_005-2",
+      "title": "review and leave comments by Wednesday EOD",
+      "source_sentence": "review and leave comments by Wednesday EOD",
+      "source_type": "email"
+    },
+    {
+      "id": "email_006-2",
+      "title": "QA and sign off before we roll to staging",
+      "source_sentence": "QA and sign off before we roll to staging",
+      "source_type": "email"
+    },
+    {
+      "id": "email_007-2",
+      "title": "add your items to the doc before the meeting",
+      "source_sentence": "add your items to the doc before the meeting",
+      "source_type": "email"
+    },
+    {
+      "id": "email_010-2",
+      "title": "ensure the demo environment is stable and has realistic data",
+      "source_sentence": "ensure the demo environment is stable and has realistic data",
+      "source_type": "email"
+    },
+    {
+      "id": "email_012-2",
+      "title": "bring the sprint retrospective notes so we can review them over lunch",
+      "source_sentence": "bring the sprint retrospective notes so we can review them over lunch",
+      "source_type": "email"
+    }
+  ],
+  "expected_dedup_pairs": [
+    {
+      "task1_id": "SL-002",
+      "task2_id": "SL-001",
+      "should_merge": true,
+      "reason": "Similar titles: 'Slack mention in #frontend' and 'Slack mention in #engineering'"
+    }
+  ],
+  "expected_priority_order": [
+    "DEF-005",
+    "email_001",
+    "email_004",
+    "SL-002",
+    "email_009"
+  ],
+  "expected_rationale_keywords": {
+    "DEF-005": [
+      "high priority",
+      "urgent"
+    ],
+    "email_001": [
+      "high priority",
+      "urgent"
+    ],
+    "email_004": [
+      "high priority",
+      "urgent"
+    ]
+  }
+}

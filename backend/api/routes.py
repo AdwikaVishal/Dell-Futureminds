@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from models.task import ChatRequest, ChatResponse, DailyPlan, InjectRequest, RankedTask
-from core.state import store, get_recent_traces, save_chat_log
+from core.state import store, get_recent_traces, save_chat_log, save_feedback, get_user_preference_boosts
 from core.agent import run_pipeline, reprioritize_with_injection
 from core.qa import answer_question
 from core.sync_engine import sync_engine
@@ -113,6 +113,33 @@ async def get_task(task_id: str):
     raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
 
+@router.get("/api/team-metrics")
+async def get_team_metrics():
+    tasks = store.current_tasks
+    if not tasks:
+        return {"teams": {}}
+
+    team_stats = {}
+    for task in tasks:
+        team = task.team or "unassigned"
+        assignee = task.assignee or "unassigned"
+
+        if team not in team_stats:
+            team_stats[team] = {"members": {}, "total_tasks": 0, "blocked": 0}
+
+        if assignee not in team_stats[team]["members"]:
+            team_stats[team]["members"][assignee] = {"tasks": 0, "blocked": 0}
+
+        team_stats[team]["members"][assignee]["tasks"] += 1
+        team_stats[team]["total_tasks"] += 1
+
+        if task.status == "blocked":
+            team_stats[team]["members"][assignee]["blocked"] += 1
+            team_stats[team]["blocked"] += 1
+
+    return {"teams": team_stats}
+
+
 @router.post("/api/chat")
 async def chat(req: ChatRequest):
     if not req.message.strip():
@@ -121,10 +148,7 @@ async def chat(req: ChatRequest):
         if store.current_plan is None:
             await run_pipeline()
         tasks = store.current_tasks
-        context = {
-            "chat_history": store.chat_history[-5:],
-        }
-        response = await answer_question(tasks, req.message, context)
+        response = await answer_question(tasks, req.message, store.chat_history[-5:])
         store.add_chat_entry(req.message, response.answer, response.referenced_task_ids)
         save_chat_log(req.message, response.answer, response.referenced_task_ids)
         return response
@@ -151,6 +175,21 @@ async def inject(req: InjectRequest):
     except Exception as e:
         logger.exception("Inject failed")
         raise HTTPException(status_code=500, detail=f"Inject failed: {e}")
+
+
+@router.post("/api/feedback")
+async def submit_feedback(feedback: dict):
+    save_feedback(
+        task_id=feedback.get("task_id", ""),
+        action=feedback.get("action", "upvote"),
+        preference=feedback.get("preference", "general"),
+    )
+    return {"status": "ok", "message": "Feedback recorded"}
+
+
+@router.get("/api/feedback/preferences")
+async def feedback_preferences():
+    return {"boosts": get_user_preference_boosts()}
 
 
 @router.get("/api/traces")

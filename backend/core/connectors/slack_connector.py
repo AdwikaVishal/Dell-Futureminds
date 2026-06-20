@@ -73,16 +73,30 @@ class SlackConnector(SourceConnector):
             logger.error("Error building conversation map: %s", e)
         return mapping
 
+    def _load_simulated(self) -> list[dict[str, Any]]:
+        import json
+        from pathlib import Path
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "slack_samples.json"
+        if not path.exists():
+            logger.warning("Simulated Slack data not found at %s", path)
+            return []
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error("Failed to load simulated Slack data: %s", e)
+            return []
+
     async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         if not self._client or not self.connected:
-            logger.warning("Slack connector not connected")
-            return []
+            logger.info("Slack not connected — using simulated data")
+            return self._load_simulated()
 
         if not self._conversation_map:
             self._conversation_map = await self._build_conversation_map()
             if not self._conversation_map:
-                logger.warning("No Slack channels found")
-                return []
+                logger.warning("No Slack channels found — using simulated data")
+                return self._load_simulated()
 
         results: list[dict[str, Any]] = []
 
@@ -140,6 +154,10 @@ class SlackConnector(SourceConnector):
             except Exception as e:
                 logger.error("Error fetching Slack messages from %s: %s", channel_name, e)
                 continue
+
+        if not results:
+            logger.info("No Slack messages fetched from live API — using simulated data")
+            return self._load_simulated()
 
         self.last_sync = datetime.now(timezone.utc).isoformat()
         logger.info("Fetched %d actionable messages from Slack", len(results))

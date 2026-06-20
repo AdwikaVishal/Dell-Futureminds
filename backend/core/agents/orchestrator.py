@@ -9,6 +9,7 @@ from core.agents.dedup_agent import DedupAgent
 from core.agents.priority_agent import PriorityAgent
 from core.agents.planning_agent import PlanningAgent
 from models.task import Task
+from core.normalizer import _infer_team
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,8 @@ class AgentOrchestrator:
                         priority=item.get("priority"),
                         deadline=item.get("deadline"),
                         owner=item.get("owner"),
+                        assignee=item.get("owner"),
+                        team=_infer_team(item.get("owner")),
                         status=item.get("status") or "open",
                         dependencies=item.get("dependencies", []),
                         blocks=item.get("blocks", []),

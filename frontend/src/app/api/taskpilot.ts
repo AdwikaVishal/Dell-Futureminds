@@ -46,6 +46,7 @@ export type DailyPlan = {
   deferred: RankedTask[];
   blocked: RankedTask[];
   alerts: Alert[];
+  ranked_tasks: RankedTask[];
 };
 
 export type ChatResponse = {

@@ -5,6 +5,8 @@ import { Screen2 } from "./components/screens/Screen2";
 import { Screen3 } from "./components/screens/Screen3";
 import { Screen4 } from "./components/screens/Screen4";
 import { Screen5 } from "./components/screens/Screen5";
+import { Screen6 } from "./components/screens/Screen6";
+import { Settings } from "./components/screens/Settings";
 
 const BG = "#0E1411";
 const CARD = "#161D19";
@@ -18,6 +20,7 @@ const ROUTES = [
   { path: "/sources", screen: 4 },
   { path: "/assistant", screen: 3 },
   { path: "/weekly-summary", screen: 5 },
+  { path: "/traces", screen: 6 },
 ] as const;
 
 function NavOverlay() {
@@ -66,6 +69,8 @@ export default function App() {
           <Route path="/sources" element={<Screen4 />} />
           <Route path="/assistant" element={<Screen3 />} />
           <Route path="/weekly-summary" element={<Screen5 />} />
+          <Route path="/traces" element={<Screen6 />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

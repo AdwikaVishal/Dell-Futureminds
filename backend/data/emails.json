@@ -75,5 +75,60 @@
     "isRead": true,
     "priority": "P2",
     "deadline": "2026-06-20T15:00:00Z"
+  },
+  {
+    "id": "email_008",
+    "subject": "VP escalation — customer login issue (JIRA-1234)",
+    "body_preview": "The VP is asking about the login bug. Need an update by noon.",
+    "body_content": "Team,\n\nThe VP just asked about the login issue that was reported yesterday. This is JIRA-1234. She wants a status update and ETA on the fix by noon today. Please prioritize this — it's a P1 now due to customer escalation.\n\nAlso, Adwika, can you prepare a summary of what went wrong for the post-mortem?\n\nThanks,\nSarah (PM)",
+    "from": "sarah.pm@taskpilot.ai",
+    "receivedDateTime": "2026-06-19T09:30:00Z",
+    "isRead": false,
+    "priority": "P1",
+    "deadline": "2026-06-19T12:00:00Z"
+  },
+  {
+    "id": "email_009",
+    "subject": "RE: Security audit findings",
+    "body_preview": "The Q2 security audit identified 3 critical vulnerabilities. Fixes required by next sprint.",
+    "body_content": "Hi team,\n\nThe Q2 security audit report is in. There are 3 critical vulnerabilities that need attention:\n1. API token exposure in logs (Saatvika, please rotate all tokens)\n2. Unencrypted database backups (Adwika, enable encryption)\n3. Missing rate limiting on auth endpoints\n\nThese must be fixed before the next sprint release.\n\n-Security Team",
+    "from": "security@taskpilot.ai",
+    "receivedDateTime": "2026-06-17T13:00:00Z",
+    "isRead": true,
+    "priority": "P0",
+    "deadline": "2026-06-22T23:59:00Z"
+  },
+  {
+    "id": "email_010",
+    "subject": "Customer demo prep — Adwika leading the walkthrough",
+    "body_preview": "Adwika, you're leading the customer demo on Monday. Please prepare the walkthrough script.",
+    "body_content": "Adwika,\n\nYou're assigned to lead the customer demo on Monday at 10am. Please prepare a walkthrough script covering:\n- The new dashboard features\n- Task prioritization flow\n- The AI chat assistant\n\nAlso, Saatvika, please ensure the demo environment is stable and has realistic data.\n\nThanks,\nSarah",
+    "from": "sarah.pm@taskpilot.ai",
+    "receivedDateTime": "2026-06-19T14:00:00Z",
+    "isRead": false,
+    "priority": "P2",
+    "deadline": "2026-06-21T10:00:00Z"
+  },
+  {
+    "id": "email_011",
+    "subject": "Question: How does the deduplication work?",
+    "body_preview": "Can someone explain the dedup logic? I'm seeing duplicate tasks from Jira and email.",
+    "body_content": "Hi team,\n\nI noticed that tasks from Jira and emails sometimes appear as duplicates. Can someone walk me through the deduplication algorithm? Should I worry about losing context when tasks are merged?\n\nAlso, Saatvika, can you document the dedup logic for the user guide?\n\nThanks,\nNewDev",
+    "from": "newdev@taskpilot.ai",
+    "receivedDateTime": "2026-06-18T15:30:00Z",
+    "isRead": true,
+    "priority": "P3",
+    "deadline": null
+  },
+  {
+    "id": "email_012",
+    "subject": "Team lunch — Friday at 1pm",
+    "body_preview": "We're ordering lunch on Friday. Please RSVP with your preference.",
+    "body_content": "Hi everyone,\n\nWe're ordering lunch this Friday at 1pm. Please reply with your preference:\n- Option A: Pizza\n- Option B: Sandwiches\n- Option C: Salad\n\nAlso, Adwika, please bring the sprint retrospective notes so we can review them over lunch.\n\n-Sarah",
+    "from": "sarah.pm@taskpilot.ai",
+    "receivedDateTime": "2026-06-19T11:00:00Z",
+    "isRead": false,
+    "priority": "P3",
+    "deadline": "2026-06-20T13:00:00Z"
   }
 ]

@@ -11,9 +11,7 @@ _SELF_TOKENS = {"you", "me", "i", "myself"}
 
 
 def _is_my_task(task) -> bool:
-    if task.owner is None:
-        return True
-    return task.owner.strip().lower() in _SELF_TOKENS
+    return True
 
 
 class PriorityAgent(BaseAgent):

@@ -48,10 +48,24 @@ class GitHubConnector(SourceConnector):
             self._client = None
             return False
 
+    def _load_simulated(self) -> list[dict[str, Any]]:
+        import json
+        from pathlib import Path
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "github_samples.json"
+        if not path.exists():
+            logger.warning("Simulated GitHub data not found at %s", path)
+            return []
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error("Failed to load simulated GitHub data: %s", e)
+            return []
+
     async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         if not self._client or not self.connected:
-            logger.warning("GitHub connector not connected")
-            return []
+            logger.info("GitHub not connected — using simulated data")
+            return self._load_simulated()
 
         results: list[dict[str, Any]] = []
         page = 1
@@ -113,13 +127,13 @@ class GitHubConnector(SourceConnector):
             return results
 
         except httpx.HTTPStatusError as e:
-            logger.error("GitHub API error: %s", e)
+            logger.error("GitHub API error: %s — falling back to simulated data", e)
             self.error = str(e)
-            return []
+            return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching GitHub items: %s", e)
+            logger.error("Error fetching GitHub items: %s — falling back to simulated data", e)
             self.error = str(e)
-            return []
+            return self._load_simulated()
 
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []

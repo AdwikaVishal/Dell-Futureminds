@@ -25,6 +25,8 @@ class Task(BaseModel):
     vp_escalation: bool = False
     customer_facing: bool = False
     dedup_group: Optional[str] = None
+    assignee: Optional[str] = None
+    team: Optional[str] = None
 
 
 class RankedTask(Task):
@@ -47,6 +49,7 @@ class DailyPlan(BaseModel):
     deferred: list[RankedTask] = []
     blocked: list[RankedTask] = []
     alerts: list[Alert] = []
+    ranked_tasks: list[RankedTask] = []
 
 
 class ChatRequest(BaseModel):

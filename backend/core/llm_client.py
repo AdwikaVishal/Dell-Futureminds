@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from dotenv import load_dotenv
 import httpx
+from core.tracer import trace
 
 load_dotenv()
 
@@ -618,6 +619,7 @@ class ResilientLLMClient:
 _client = ResilientLLMClient()
 
 
+@trace("llm_call")
 async def call_llm(
     prompt: str,
     system: Optional[str] = None,

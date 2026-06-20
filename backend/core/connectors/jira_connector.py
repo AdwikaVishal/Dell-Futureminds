@@ -41,10 +41,24 @@ class JiraConnector(SourceConnector):
             self._client = None
             return False
 
+    def _load_simulated(self) -> list[dict[str, Any]]:
+        import json
+        from pathlib import Path
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "jira_samples.json"
+        if not path.exists():
+            logger.warning("Simulated Jira data not found at %s", path)
+            return []
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error("Failed to load simulated Jira data: %s", e)
+            return []
+
     async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         if not self._client or not self.connected:
-            logger.warning("Jira connector not connected")
-            return []
+            logger.info("Jira not connected — using simulated data")
+            return self._load_simulated()
 
         results: list[dict[str, Any]] = []
         start_at = 0
@@ -88,13 +102,13 @@ class JiraConnector(SourceConnector):
             return results
 
         except httpx.HTTPStatusError as e:
-            logger.error("Jira API error: %s", e)
+            logger.error("Jira API error: %s — falling back to simulated data", e)
             self.error = str(e)
-            return []
+            return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching Jira issues: %s", e)
+            logger.error("Error fetching Jira issues: %s — falling back to simulated data", e)
             self.error = str(e)
-            return []
+            return self._load_simulated()
 
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []

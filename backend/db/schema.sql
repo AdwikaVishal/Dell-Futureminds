@@ -67,3 +67,11 @@ CREATE TABLE IF NOT EXISTS agent_logs (
     duration_ms REAL,
     details TEXT
 );
+
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT,
+    action TEXT,
+    user_preference TEXT,
+    timestamp TEXT
+);

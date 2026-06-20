@@ -1,78 +1,50 @@
-from __future__ import annotations
-
 import json
-from typing import Any
+import logging
+from typing import List, Dict, Any
 
 from core.llm_client import call_llm
 from core.prompts import build_qa_prompt
-from models.task import Task, ChatResponse
 
-MAX_CONTEXT_TASKS = 25
-MAX_HISTORY_TURNS = 6
+logger = logging.getLogger(__name__)
 
+async def answer_question(tasks: List[Dict], question: str, chat_history: List[Dict]) -> Dict:
+    """
+    Answer a question using the task list and chat history.
+    """
+    # ---------- FIX: Robust history sanitization ----------
+    if not isinstance(chat_history, list):
+        chat_history = []
 
-def _build_task_context(tasks: list[Task]) -> list[dict[str, Any]]:
-    sorted_tasks = sorted(tasks, key=lambda t: t.score or 0, reverse=True)
-    context_tasks = sorted_tasks[:MAX_CONTEXT_TASKS]
-    return [
-        {
-            "id": t.id,
-            "title": t.title,
-            "source": t.source,
-            "source_type": t.source_type,
-            "priority": t.priority,
-            "deadline": t.deadline,
-            "owner": t.owner,
-            "status": t.status,
-            "score": t.score,
-            "rationale": t.rationale,
-            "dependencies": t.dependencies,
-            "blocks": t.blocks,
-            "vp_escalation": t.vp_escalation,
-            "customer_facing": t.customer_facing,
-            "merged_sources": t.merged_sources,
-            "source_sentence": t.source_sentence,
-        }
-        for t in context_tasks
-    ]
+    clean_history = []
+    for entry in chat_history:
+        if not isinstance(entry, dict):
+            continue
+        # If entry has 'user' and 'assistant', convert to two separate messages
+        if "user" in entry and "assistant" in entry:
+            clean_history.append({"role": "user", "content": entry["user"]})
+            clean_history.append({"role": "assistant", "content": entry["assistant"]})
+        # If entry already has 'role' and 'content', keep it
+        elif "role" in entry and "content" in entry:
+            clean_history.append(entry)
+        # Otherwise, ignore malformed entry
+        # (no 'role' or missing content)
+    chat_history = clean_history
+    # -----------------------------------------------------
 
-
-def _trim_history(history: list[dict[str, str]]) -> list[dict[str, str]]:
-    return history[-(MAX_HISTORY_TURNS * 2):]
-
-
-async def answer_question(
-    tasks: list[Task],
-    question: str,
-    chat_history: list[dict[str, str]] | None = None,
-) -> ChatResponse:
-    task_context = _build_task_context(tasks)
-    trimmed_history = _trim_history(chat_history or [])
-
-    system, user_prompt = build_qa_prompt(
-        full_task_context=task_context,
-        user_question=question,
-        chat_history=trimmed_history,
-    )
+    # Build prompt using sanitized history
+    prompt = build_qa_prompt(tasks, question, chat_history)
 
     try:
-        response = await call_llm(
-            prompt=user_prompt,
-            system=system,
-            json_mode=True,
-            temperature=0.4,
-            max_output_tokens=1024,
-        )
-
-        if response.parsed_json and isinstance(response.parsed_json, dict):
-            return ChatResponse(
-                answer=str(response.parsed_json.get("answer", response.text)),
-                referenced_task_ids=list(response.parsed_json.get("citations", [])),
-            )
-
-        return ChatResponse(answer=response.text.strip(), referenced_task_ids=[])
-    except Exception:
-        return ChatResponse(
-            answer="I'm sorry, the AI assistant is temporarily unavailable. Please try again later.",
-            referenced_task_ids=[],
-        )
+        response = await call_llm(prompt, json_mode=True)
+        data = json.loads(response)
+        return {
+            "answer": data.get("answer", "I couldn't find an answer."),
+            "referenced_task_ids": data.get("referenced_task_ids", [])
+        }
+    except Exception as e:
+        logger.error(f"QA failed: {e}")
+        # Fallback for demo
+        return {
+            "answer": "Heuristic mode: Unable to answer questions. Please check your task list manually.",
+            "referenced_task_ids": []
+        }
