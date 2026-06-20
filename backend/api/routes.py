@@ -1,27 +1,69 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
-
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from models.task import ChatRequest, ChatResponse, DailyPlan, InjectRequest, RankedTask
 from core.state import store, get_recent_traces, save_chat_log
 from core.agent import run_pipeline, reprioritize_with_injection
 from core.qa import answer_question
+from core.sync_engine import sync_engine
+from core.observability import get_metrics_summary, get_connector_status
+from core.websocket_manager import ws_manager
+from core.connector_registry import connector_registry
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                event = msg.get("event", "")
+                if event == "ping":
+                    await websocket.send_text(json.dumps({"event": "pong"}))
+                elif event == "refresh":
+                    plan = await run_pipeline()
+                    await ws_manager.broadcast_plan(plan.model_dump(mode="json"))
+            except json.JSONDecodeError:
+                pass
+            except Exception as e:
+                logger.error("WebSocket message error: %s", e)
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error("WebSocket error: %s", e)
+        ws_manager.disconnect(websocket)
+
+
 @router.get("/api/health")
 async def health():
+    import os
     summary = store.get_state_summary()
+    connector_status = get_connector_status()
+
+    jira_c = next((c for c in connector_status if c["name"] == "Jira"), {})
+    github_c = next((c for c in connector_status if c["name"] == "GitHub"), {})
+
+    llm_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
+
     return {
         "status": "ok",
-        "last_run": summary["last_run"],
+        "jira_connected": bool(jira_c.get("connected", False)),
+        "github_connected": bool(github_c.get("connected", False)),
+        "grok_connected": bool(llm_key),
         "task_count": summary["task_count"],
+        "last_sync": summary["last_run"],
+        "connectors": connector_status,
     }
 
 
@@ -29,6 +71,7 @@ async def health():
 async def refresh():
     try:
         plan = await run_pipeline()
+        await ws_manager.broadcast_plan(plan.model_dump(mode="json"))
         return plan
     except Exception as e:
         logger.exception("Pipeline refresh failed")
@@ -99,6 +142,8 @@ async def inject(req: InjectRequest):
 
         new_plan = await reprioritize_with_injection(req)
 
+        await ws_manager.broadcast_plan(new_plan.model_dump(mode="json"))
+
         result = new_plan.model_dump(mode="json")
         return result
     except HTTPException:
@@ -141,14 +186,43 @@ async def weekly_summary():
 
 @router.get("/api/sources")
 async def get_sources():
+    connector_status = get_connector_status()
+    status_colors = {
+        "Jira": "#2684ff",
+        "ServiceNow": "#62d84e",
+        "Outlook": "#0078d4",
+        "GitHub": "#ffffff",
+        "Slack": "#4a154b",
+        "Meeting Transcripts": "#ff6b35",
+    }
+    sources = []
+    for c in connector_status:
+        sources.append({
+            "name": c["name"],
+            "color": status_colors.get(c["name"], "#888888"),
+            "status": "Synced" if c["connected"] else "Disconnected",
+            "last_sync": c["last_sync"],
+            "error": c["error"],
+        })
     return {
-        "sources": [
-            {"name": "Jira", "color": "#2684ff", "status": "Synced"},
-            {"name": "ServiceNow", "color": "#62d84e", "status": "Synced"},
-            {"name": "Outlook", "color": "#0078d4", "status": "Synced"},
-            {"name": "GitHub", "color": "#ffffff", "status": "Synced"},
-            {"name": "Slack", "color": "#4a154b", "status": "Processing"},
-            {"name": "Meeting Transcripts", "color": "#ff6b35", "status": "Processing"},
-        ],
+        "sources": sources,
         "total_tasks": len(store.current_tasks),
     }
+
+
+@router.get("/api/sync/status")
+async def sync_status():
+    return {
+        "connectors": get_connector_status(),
+    }
+
+
+@router.post("/api/sync/now")
+async def sync_now(source_type: Optional[str] = None):
+    await sync_engine.sync_now(source_type)
+    return {"status": "ok", "message": f"Sync triggered for {source_type or 'all'} connectors"}
+
+
+@router.get("/api/metrics")
+async def metrics():
+    return get_metrics_summary()

@@ -1,7 +1,0 @@
-{
-  "meeting_id": "mtg_2026_06_19",
-  "title": "Sprint Planning — Week 25",
-  "date": "2026-06-19",
-  "participants": ["alice", "bob", "carol", "dave"],
-  "transcript": "Alice: Let's start the sprint planning. I've got the auth flow mostly done but need to fix the Safari crash first.\nBob: The dashboard designs are ready for review. I need Alice's input on the navigation layout.\nCarol: I've noticed the API documentation is missing endpoint specs for the new chat feature. Someone should document those.\nDave: The build server is running low on disk space. I'll clean up old artifacts tonight.\nAlice: Also, we should schedule a security review before the next release. I'll set that up.\nBob: Great. Let me know if anyone needs help with testing — I have some bandwidth this week."
-}

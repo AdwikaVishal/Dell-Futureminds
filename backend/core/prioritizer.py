@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from core.llm_client import call_llm
@@ -154,13 +155,10 @@ def build_daily_plan_from_tasks(
     deferred = [t for t in ranked_list[6:] if t.status != "blocked"]
 
     return DailyPlan(
-        generated_at=datetime.utcnow().isoformat(),
+        generated_at=datetime.now(timezone.utc).isoformat(),
         top_priorities=top3,
         do_next=do_next,
         deferred=deferred,
         blocked=blocked,
         alerts=alerts or [],
     )
-
-
-from datetime import datetime

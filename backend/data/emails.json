@@ -1,23 +1,79 @@
 [
   {
     "id": "email_001",
-    "subject": "RE: Q3 planning meeting",
-    "from": "manager@company.com",
-    "body": "Hi team, we need to finalize the Q3 roadmap by Friday. Alice, can you draft the engineering timeline? Bob, please review the feature request doc. Thanks!",
-    "timestamp": "2026-06-19T09:15:00Z"
+    "subject": "Sprint review prep — need dashboard by Friday",
+    "body_preview": "Hey team, the stakeholder demo is on Friday. We need the live metrics dashboard ready with real data. Can we prioritize this over the new feature work?",
+    "body_content": "Hey team,\n\nThe stakeholder demo is this Friday at 2pm. We need the live metrics dashboard to be fully functional with real data flowing from all sources. Let's pause new feature development and focus on this.\n\nThanks,\nSarah (PM)",
+    "from": "sarah.pm@taskpilot.ai",
+    "receivedDateTime": "2026-06-18T09:30:00Z",
+    "isRead": false,
+    "priority": "P0",
+    "deadline": "2026-06-21T14:00:00Z"
   },
   {
     "id": "email_002",
-    "subject": "Production hotfix needed",
-    "from": "oncall@company.com",
-    "body": "The payment gateway integration is timing out for 10% of users. This needs immediate attention — can someone from the backend team investigate?",
-    "timestamp": "2026-06-19T10:30:00Z"
+    "subject": "RE: API rate limiting — we're hitting GitHub limits",
+    "body_preview": "We're getting 429s from GitHub API during sync. Need to implement backoff or reduce poll frequency.",
+    "body_content": "The sync engine is hitting GitHub API rate limits every 15 minutes. We need exponential backoff or increase the poll interval to at least 5 minutes. Also, consider using conditional requests with ETags.\n\n- Dev team",
+    "from": "dev-team@taskpilot.ai",
+    "receivedDateTime": "2026-06-18T10:15:00Z",
+    "isRead": true,
+    "priority": "P1",
+    "deadline": null
   },
   {
     "id": "email_003",
-    "subject": "Code review request: auth module",
-    "from": "teammate@company.com",
-    "body": "I've pushed the auth module changes to branch 'feature/auth-v2'. Could someone review the PR by EOD? It blocks the dashboard work.",
-    "timestamp": "2026-06-19T11:00:00Z"
+    "subject": "New feature request: Dark mode toggle",
+    "body_preview": "Users are requesting dark mode for the dashboard. Do we have capacity this sprint?",
+    "body_content": "Several enterprise customers have requested dark mode support for the dashboard UI. It would be a nice-to-have for the upcoming release. Let's discuss in the next sprint planning.\n\nBest,\nAlice (Customer Success)",
+    "from": "alice.cs@taskpilot.ai",
+    "receivedDateTime": "2026-06-18T11:00:00Z",
+    "isRead": true,
+    "priority": "P3",
+    "deadline": null
+  },
+  {
+    "id": "email_004",
+    "subject": "URGENT: Production incident — login service down",
+    "body_preview": "Users cannot log in. The auth service is returning 503. Need immediate investigation.",
+    "body_content": "Production incident reported at 10:45 UTC. The login service is down, returning 503 errors. All hands on deck — this is blocking all users. Root cause is unknown, possibly database connection pool exhaustion.\n\n-Oncall",
+    "from": "oncall@taskpilot.ai",
+    "receivedDateTime": "2026-06-18T10:50:00Z",
+    "isRead": false,
+    "priority": "P0",
+    "deadline": "2026-06-18T12:00:00Z"
+  },
+  {
+    "id": "email_005",
+    "subject": "Design review for new onboarding flow",
+    "body_preview": "The new onboarding designs are ready for review. Please provide feedback by EOD Wednesday.",
+    "body_content": "Hi everyone,\n\nThe Figma prototypes for the revamped onboarding flow are ready. Key changes include:\n- 3-step wizard instead of 5-step\n- Tooltip guides for first-time users\n- Skip option for power users\n\nPlease review and leave comments by Wednesday EOD.\n\nCheers,\nMia (Design)",
+    "from": "mia.design@taskpilot.ai",
+    "receivedDateTime": "2026-06-17T14:30:00Z",
+    "isRead": true,
+    "priority": "P2",
+    "deadline": "2026-06-19T23:59:00Z"
+  },
+  {
+    "id": "email_006",
+    "subject": "Database migration script — QA needed",
+    "body_preview": "The v2 schema migration script is ready for QA review. Affects users, tasks, and analytics tables.",
+    "body_content": "The migration script for schema v2 is ready in the `migrations/v2/` directory. It affects 3 tables: users (adds timezone column), tasks (adds tags column), and analytics (deprecates old metrics). Please QA and sign off before we roll to staging.\n\n-Jen (Backend)",
+    "from": "jen.dev@taskpilot.ai",
+    "receivedDateTime": "2026-06-17T16:00:00Z",
+    "isRead": false,
+    "priority": "P1",
+    "deadline": "2026-06-20T23:59:00Z"
+  },
+  {
+    "id": "email_007",
+    "subject": "Weekly sync agenda — June 20",
+    "body_preview": "Agenda: 1) Sprint progress 2) Blockers 3) Demo prep 4) Capacity planning",
+    "body_content": "Hi team,\n\nAgenda for this week's sync:\n1. Sprint progress update (10 min)\n2. Blocker discussion (10 min)\n3. Friday stakeholder demo prep (15 min)\n4. Next sprint capacity planning (10 min)\n5. AOB\n\nPlease add your items to the doc before the meeting.\n\n-Sarah",
+    "from": "sarah.pm@taskpilot.ai",
+    "receivedDateTime": "2026-06-19T08:00:00Z",
+    "isRead": true,
+    "priority": "P2",
+    "deadline": "2026-06-20T15:00:00Z"
   }
 ]

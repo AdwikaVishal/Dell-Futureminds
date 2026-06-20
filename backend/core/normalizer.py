@@ -25,7 +25,7 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             title=item["title"],
             description=item.get("description", ""),
             source=item.get("source", item["id"]),
-            source_type="jira",
+            source_type=item.get("source_type", "jira"),
             priority=item.get("priority"),
             deadline=_parse_date(item.get("deadline")),
             owner=item.get("owner"),

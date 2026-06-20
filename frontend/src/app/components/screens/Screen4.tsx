@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ExternalLink } from "lucide-react";
 import { AppHeader } from "../shared/AppHeader";
 import { Sidebar } from "../shared/Sidebar";
@@ -6,7 +6,8 @@ import { Card } from "../shared/Card";
 import { SourceBadge } from "../shared/SourceBadge";
 import { SparkleIcon } from "../shared/SparkleIcon";
 import { AIRationale } from "../shared/AIRationale";
-import { getSources, SourcesResponse } from "../../api/taskpilot";
+import { getSources, getTasks, SourcesResponse, Task, WebSocketEvent } from "../../api/taskpilot";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
 const TEXT_PRIMARY = "#EDF3EF";
 const TEXT_MUTED = "#8B9890";
@@ -17,6 +18,14 @@ const BORDER = "#232B26";
 export function Screen4() {
   const [sources, setSources] = useState<SourcesResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleWsEvent = useCallback((event: WebSocketEvent) => {
+    if (event.event === "tasks_updated" || event.event === "plan_updated") {
+      getSources().then(setSources).catch(() => {});
+    }
+  }, []);
+
+  useWebSocket(handleWsEvent);
 
   useEffect(() => {
     getSources()
@@ -36,14 +45,14 @@ export function Screen4() {
           <div style={{ marginBottom: 24 }}>
             <h2 style={{ color: TEXT_PRIMARY, fontSize: 20, fontWeight: 600, margin: 0 }}>Sources</h2>
             <p style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 4 }}>
-              {loading ? "Loading..." : `${displaySources.length} connected integrations · indexed from APIs`}
+              {loading ? "Loading..." : `${displaySources.length} connected integrations`}
             </p>
           </div>
 
           <div style={{ background: "rgba(143,203,168,0.07)", border: `1px solid rgba(143,203,168,0.2)`, borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
             <SparkleIcon size={14} />
             <span style={{ color: SAGE, fontSize: 13 }}>
-              Hidden action items found today — extracted from unstructured sources via LLM
+              Live data from {displaySources.filter(s => s.status === "Synced").length}/{displaySources.length} connected sources
             </span>
           </div>
 
@@ -66,50 +75,20 @@ export function Screen4() {
                       </div>
                     </div>
                     <div style={{ color: TEXT_PRIMARY, fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{src.name}</div>
-                    <div style={{ color: TEXT_MUTED, fontSize: 12, marginBottom: 4 }}>Tasks indexed via pipeline</div>
-                    <div style={{ color: TEXT_MUTED, fontSize: 11 }}>Status: {src.status}</div>
+                    <div style={{ color: TEXT_MUTED, fontSize: 12, marginBottom: 4 }}>Live data via API</div>
+                    <div style={{ color: TEXT_MUTED, fontSize: 11 }}>
+                      Status: {src.status}
+                      {src.last_sync ? ` · Last sync: ${new Date(src.last_sync).toLocaleTimeString()}` : ""}
+                    </div>
                   </Card>
                 ))}
               </div>
 
               <div style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 12 }}>
-                LLM Extraction in Progress
+                Extracted Action Items
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Card style={{ padding: "16px 18px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                    <SourceBadge source="Outlook" />
-                    <span style={{ color: TEXT_MUTED, fontSize: 11 }}>Raw source</span>
-                  </div>
-                  <div style={{ color: TEXT_MUTED, fontSize: 11, fontFamily: "monospace", lineHeight: 1.6 }}>
-                    From: Sarah Chen &lt;schen@acme.com&gt;<br />
-                    To: eng-backend@acme.com<br />
-                    Subject: Re: Auth token refresh — seeing failures<br />
-                    Date: Recent<br /><br />
-                    "Hey team, can someone investigate the auth token refresh failures we're seeing in prod? Started around 10:45 PM. Error rate is ~14% and climbing."
-                  </div>
-                </Card>
-                <Card style={{ padding: "16px 18px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ background: "rgba(143,203,168,0.1)", color: SAGE, fontSize: 11, padding: "2px 8px", borderRadius: 20, border: `1px solid rgba(143,203,168,0.2)`, display: "flex", alignItems: "center", gap: 5 }}>
-                      <SparkleIcon size={10} /> AI-extracted task
-                    </span>
-                  </div>
-                  {[
-                    ["Title", "Investigate auth token refresh failures"],
-                    ["Priority", "P1 high"],
-                    ["Confidence", "91%"],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                      <span style={{ color: TEXT_MUTED, fontSize: 12, minWidth: 76 }}>{k}</span>
-                      <span style={{ color: TEXT_PRIMARY, fontSize: 12, fontWeight: k === "Priority" ? 500 : 400 }}>{v}</span>
-                    </div>
-                  ))}
-                  <button style={{ marginTop: 8, background: "none", border: "none", color: SAGE, fontSize: 12, cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                    <ExternalLink size={11} /> Trace to source email
-                  </button>
-                  <AIRationale text="Extracted action item via LLM from email thread. Deadline inferred from content. Cross-referenced with GitHub issues." />
-                </Card>
+              <div style={{ color: TEXT_MUTED, fontSize: 13, marginBottom: 16 }}>
+                {sources?.total_tasks ?? 0} total tasks across all sources
               </div>
             </>
           )}

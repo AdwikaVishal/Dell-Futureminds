@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Zap, Bell, MessageSquare, RefreshCw, CheckSquare, Square, Circle } from "lucide-react";
 import { AppHeader } from "../shared/AppHeader";
 import { Sidebar } from "../shared/Sidebar";
@@ -7,7 +7,8 @@ import { PriorityPill } from "../shared/PriorityPill";
 import { SourceBadge } from "../shared/SourceBadge";
 import { AIRationale } from "../shared/AIRationale";
 import { SparkleIcon } from "../shared/SparkleIcon";
-import { getPlan, DailyPlan, RankedTask } from "../../api/taskpilot";
+import { getPlan, refreshPlan, DailyPlan, RankedTask, WebSocketEvent } from "../../api/taskpilot";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
 const TEXT_PRIMARY = "#EDF3EF";
 const TEXT_MUTED = "#8B9890";
@@ -16,16 +17,18 @@ const CARD_BG = "#161D19";
 const BORDER = "#232B26";
 const BG = "#0E1411";
 
-const FALLBACK_TOP3 = [
-  { id: "JIRA-2847", title: "Production logs analysis — upload service 500 errors", source: "Jira", priority: "P0", rationale: "P0 severity + VP escalation + SLA expires in 18h", deadline: "6:00 PM" },
-  { id: "SN-10921", title: "Postgres v15 migration prep — staging env", source: "ServiceNow", priority: "P1", rationale: "Release window closes Monday + 3 dependent teams blocked", deadline: "EOD" },
-  { id: "EMAIL-042", title: "Auth token refresh regression — investigate root cause", source: "Outlook", priority: "P1", rationale: "Extracted from Sarah Chen's email thread + GitHub issue #4291 cross-linked", deadline: "tomorrow 9:00 AM" },
-];
-
 export function Screen1() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [plan, setPlan] = useState<DailyPlan | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleWsEvent = useCallback((event: WebSocketEvent) => {
+    if (event.event === "plan_updated" || event.event === "priorities_updated") {
+      setPlan(event.data as DailyPlan);
+    }
+  }, []);
+
+  useWebSocket(handleWsEvent);
 
   const refresh = async () => {
     setLoading(true);
@@ -33,7 +36,7 @@ export function Screen1() {
       const p = await getPlan();
       setPlan(p);
     } catch {
-      // fallback to mock data
+      // Will show empty state
     } finally {
       setLoading(false);
     }
@@ -56,13 +59,24 @@ export function Screen1() {
         <main style={{ flex: 1, overflow: "auto", padding: "28px 28px", display: "flex", flexDirection: "column", gap: 24 }}>
           <div>
             <h2 style={{ color: TEXT_PRIMARY, fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: "-0.02em" }}>
-              Good morning, Alex
+              Daily Plan
             </h2>
             <p style={{ color: TEXT_MUTED, fontSize: 13, marginTop: 4 }}>
-              {loading ? "Loading..." : `${top3.length} priorities · ${rest.length} remaining tasks`}
+              {loading ? "Loading..." : !plan ? "No plan available. Run a refresh to get started." : `${top3.length} priorities · ${rest.length} remaining tasks`}
             </p>
           </div>
 
+          {!plan && !loading && (
+            <div style={{ textAlign: "center", color: TEXT_MUTED, fontSize: 13, padding: 40 }}>
+              <p>No data yet. Connect your sources and run the pipeline to see your daily plan.</p>
+              <button onClick={() => refreshPlan().then(setPlan).catch(() => {})}
+                style={{ marginTop: 12, background: SAGE, color: "#0a1a0f", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+                Refresh Now
+              </button>
+            </div>
+          )}
+
+          {plan && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               <div>
@@ -70,7 +84,12 @@ export function Screen1() {
                   Your Top 3 Priorities Today
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {(top3.length ? top3 : loading ? [] : FALLBACK_TOP3).map((task: any, i: number) => (
+                  {top3.length === 0 && (
+                    <Card style={{ padding: "16px 18px" }}>
+                      <span style={{ color: TEXT_MUTED, fontSize: 13 }}>No priorities ranked yet.</span>
+                    </Card>
+                  )}
+                  {top3.map((task: any, i: number) => (
                     <Card key={task.id} style={{ padding: "16px 18px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                         <div>
@@ -106,6 +125,11 @@ export function Screen1() {
                   Rest of Today
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {rest.length === 0 && (
+                    <Card style={{ padding: "12px 16px" }}>
+                      <span style={{ color: TEXT_MUTED, fontSize: 13 }}>No additional tasks.</span>
+                    </Card>
+                  )}
                   {rest.map((task: any) => (
                     <Card key={task.id} style={{ padding: "12px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -144,24 +168,14 @@ export function Screen1() {
                       </div>
                     </Card>
                   )) : (
-                    <>
-                      <Card key="1" style={{ padding: "12px 14px" }}>
-                        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(143,203,168,0.1)", border: `1px solid rgba(143,203,168,0.2)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <Zap size={13} color={SAGE} />
-                          </div>
-                          <span style={{ color: TEXT_MUTED, fontSize: 12, lineHeight: 1.5 }}>All tasks on track — no critical alerts</span>
+                    <Card style={{ padding: "12px 14px" }}>
+                      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(143,203,168,0.1)", border: `1px solid rgba(143,203,168,0.2)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Zap size={13} color={SAGE} />
                         </div>
-                      </Card>
-                      <Card key="2" style={{ padding: "12px 14px" }}>
-                        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(143,203,168,0.1)", border: `1px solid rgba(143,203,168,0.2)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <RefreshCw size={13} color={SAGE} />
-                          </div>
-                          <span style={{ color: TEXT_MUTED, fontSize: 12, lineHeight: 1.5 }}>Pipeline updated — data is current</span>
-                        </div>
-                      </Card>
-                    </>
+                        <span style={{ color: TEXT_MUTED, fontSize: 12, lineHeight: 1.5 }}>All tasks on track — no critical alerts</span>
+                      </div>
+                    </Card>
                   )}
                 </div>
               </div>
@@ -171,9 +185,9 @@ export function Screen1() {
                   Sync status
                 </div>
                 {[
-                  ["Sources synced", "5"],
+                  ["Sources synced", "Live"],
                   ["Tasks loaded", String((plan ? top3.length + rest.length : 0) || "--")],
-                  ["Last sync", "Live"],
+                  ["Last sync", plan?.generated_at ? new Date(plan.generated_at).toLocaleTimeString() : "Pending"],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                     <span style={{ color: TEXT_MUTED, fontSize: 12 }}>{k}</span>
@@ -183,6 +197,7 @@ export function Screen1() {
               </Card>
             </div>
           </div>
+          )}
         </main>
       </div>
     </div>

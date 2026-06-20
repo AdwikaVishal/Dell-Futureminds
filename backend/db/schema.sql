@@ -40,3 +40,30 @@ CREATE TABLE IF NOT EXISTS weekly_plans (
     summary_json TEXT,
     generated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS sync_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_type TEXT NOT NULL UNIQUE,
+    last_sync TEXT,
+    status TEXT DEFAULT 'idle',
+    error TEXT,
+    items_fetched INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    source_type TEXT,
+    payload TEXT,
+    processed INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS agent_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ok',
+    duration_ms REAL,
+    details TEXT
+);

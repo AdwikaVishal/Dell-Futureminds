@@ -70,11 +70,36 @@ export type Source = {
   name: string;
   color: string;
   status: string;
+  last_sync?: string | null;
+  error?: string | null;
 };
 
 export type SourcesResponse = {
   sources: Source[];
   total_tasks: number;
+};
+
+export type ConnectorStatus = {
+  name: string;
+  connected: boolean;
+  last_sync: string | null;
+  error: string | null;
+};
+
+export type MetricsSummary = {
+  connectors: ConnectorStatus[];
+  sync_latency: unknown[];
+  ingestion_volume: { timestamp: string; count: number }[];
+  llm_usage: unknown[];
+  api_latency: { avg_latency_ms: number; total_calls: number };
+  websocket_health: { total_connections: number; channels: Record<string, number> };
+  task_count: number;
+  has_plan: boolean;
+};
+
+export type WebSocketEvent = {
+  event: string;
+  data: unknown;
 };
 
 const API_BASE = "";
@@ -135,4 +160,54 @@ export async function getWeeklySummary(): Promise<WeeklySummaryResponse> {
 
 export async function getSources(): Promise<SourcesResponse> {
   return jsonFetch<SourcesResponse>(`${API_BASE}/api/sources`);
+}
+
+export async function getMetrics(): Promise<MetricsSummary> {
+  return jsonFetch<MetricsSummary>(`${API_BASE}/api/metrics`);
+}
+
+export async function syncNow(sourceType?: string): Promise<void> {
+  const url = sourceType
+    ? `${API_BASE}/api/sync/now?source_type=${sourceType}`
+    : `${API_BASE}/api/sync/now`;
+  await jsonFetch<{ status: string }>(url, { method: "POST" });
+}
+
+export function createWebSocket(
+  onEvent: (event: WebSocketEvent) => void,
+  onOpen?: () => void,
+  onClose?: () => void,
+): WebSocket {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  const ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    console.log("[WS] Connected to TaskPilot");
+    onOpen?.();
+  };
+
+  ws.onmessage = (msg) => {
+    try {
+      const event = JSON.parse(msg.data) as WebSocketEvent;
+      onEvent(event);
+    } catch {
+      console.warn("[WS] Failed to parse message:", msg.data);
+    }
+  };
+
+  ws.onclose = () => {
+    console.log("[WS] Disconnected from TaskPilot");
+    onClose?.();
+    setTimeout(() => {
+      console.log("[WS] Attempting reconnect...");
+      createWebSocket(onEvent, onOpen, onClose);
+    }, 5000);
+  };
+
+  ws.onerror = (err) => {
+    console.error("[WS] Error:", err);
+  };
+
+  return ws;
 }

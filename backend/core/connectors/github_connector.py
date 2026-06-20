@@ -1,70 +1,185 @@
-import json
+import logging
 import os
+import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
+
+import httpx
 
 from core.connectors.base import SourceConnector
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
+logger = logging.getLogger(__name__)
 
 
 class GitHubConnector(SourceConnector):
     name = "GitHub"
 
-    async def connect(self) -> bool:
-        self.connected = True
-        self.last_sync = datetime.now(timezone.utc).isoformat()
-        return True
+    def __init__(self) -> None:
+        self._token = os.environ.get("GITHUB_TOKEN", "")
+        self._owner = os.environ.get("GITHUB_REPO_OWNER", "taskpilot-ai")
+        self._repo = os.environ.get("GITHUB_REPO_NAME", "backend")
+        self._client: Optional[httpx.AsyncClient] = None
 
-    async def fetch_tasks(self) -> list[dict[str, Any]]:
-        path = os.path.join(DATA_DIR, "jira_tasks.json")
-        if os.path.exists(path):
-            with open(path) as f:
-                items = json.load(f)
-            github_items = []
-            for item in items[:2]:
-                github_items.append({
-                    "id": f"GH-{item['id'].split('-')[-1]}",
-                    "title": item["title"],
-                    "description": item.get("description", ""),
-                    "source": f"GH-{item['id'].split('-')[-1]}",
-                    "source_type": "github",
-                    "priority": item.get("priority"),
-                    "deadline": item.get("deadline"),
-                    "owner": item.get("owner"),
-                    "status": item.get("status", "open"),
-                    "dependencies": item.get("dependencies", []),
-                    "blocks": [],
-                    "raw_text": item.get("raw_text", ""),
-                    "repo": "taskpilot-ai/backend",
-                    "issue_number": item['id'].split('-')[-1],
-                })
-            return github_items
-        return []
+    async def connect(self) -> bool:
+        if not self._token:
+            logger.warning("GitHub token not configured (GITHUB_TOKEN)")
+            self.connected = False
+            self.error = "Missing GitHub token"
+            return False
+        try:
+            self._client = httpx.AsyncClient(
+                base_url="https://api.github.com",
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                timeout=30.0,
+            )
+            resp = await self._client.get("/user")
+            resp.raise_for_status()
+            self.connected = True
+            self.error = None
+            logger.info("Connected to GitHub as %s/%s", self._owner, self._repo)
+            return True
+        except Exception as e:
+            logger.error("Failed to connect to GitHub: %s", e)
+            self.connected = False
+            self.error = str(e)
+            self._client = None
+            return False
+
+    async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
+        if not self._client or not self.connected:
+            logger.warning("GitHub connector not connected")
+            return []
+
+        results: list[dict[str, Any]] = []
+        page = 1
+        per_page = 100
+
+        try:
+            while True:
+                params: dict[str, Any] = {
+                    "state": "all",
+                    "per_page": per_page,
+                    "page": page,
+                }
+                if since:
+                    params["since"] = since
+
+                url = f"/repos/{self._owner}/{self._repo}/issues"
+                resp = await self._client.get(url, params=params)
+                resp.raise_for_status()
+                issues = resp.json()
+
+                for issue in issues:
+                    if "pull_request" in issue:
+                        continue
+                    results.append(issue)
+
+                link_header = resp.headers.get("Link", "")
+                if not re.search(r'rel="next"', link_header):
+                    break
+                page += 1
+
+            pr_page = 1
+            while True:
+                params = {
+                    "state": "all",
+                    "per_page": per_page,
+                    "page": pr_page,
+                    "sort": "updated",
+                    "direction": "desc",
+                }
+                if since:
+                    params["since"] = since
+
+                url = f"/repos/{self._owner}/{self._repo}/pulls"
+                resp = await self._client.get(url, params=params)
+                resp.raise_for_status()
+                prs = resp.json()
+
+                for pr in prs:
+                    pr["_is_pull_request"] = True
+                    results.append(pr)
+
+                link_header = resp.headers.get("Link", "")
+                if not re.search(r'rel="next"', link_header):
+                    break
+                pr_page += 1
+
+            self.last_sync = datetime.now(timezone.utc).isoformat()
+            logger.info("Fetched %d items (issues + PRs) from GitHub", len(results))
+            return results
+
+        except httpx.HTTPStatusError as e:
+            logger.error("GitHub API error: %s", e)
+            self.error = str(e)
+            return []
+        except Exception as e:
+            logger.error("Error fetching GitHub items: %s", e)
+            self.error = str(e)
+            return []
 
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []
-        for item in raw:
+        for issue in raw:
+            number = issue.get("number", 0)
+            is_pr = issue.get("_is_pull_request", False)
+            issue_id = f"{'PR' if is_pr else 'GH'}-{number}"
+
+            priority = None
+            for label in issue.get("labels", []):
+                name = label.get("name", "")
+                if name.upper().startswith("P") and len(name) == 2:
+                    priority = name.upper()
+                    break
+
+            milestone = issue.get("milestone")
+            deadline = milestone.get("due_on") if milestone else None
+
+            assignee = None
+            if issue.get("assignee"):
+                assignee = issue["assignee"].get("login")
+            elif issue.get("assignees"):
+                assignees = issue["assignees"]
+                if assignees:
+                    assignee = assignees[0].get("login")
+
+            body = issue.get("body") or ""
+
             normalized.append({
-                "id": item["id"],
-                "title": item["title"],
-                "description": item.get("description", ""),
-                "source": item["id"],
+                "id": issue_id,
+                "title": issue.get("title", ""),
+                "description": body,
+                "source": issue_id,
                 "source_type": "github",
-                "priority": item.get("priority"),
-                "deadline": item.get("deadline"),
-                "owner": item.get("owner"),
-                "status": item.get("status", "open"),
-                "dependencies": item.get("dependencies", []),
-                "blocks": item.get("blocks", []),
-                "raw_text": item.get("raw_text", ""),
-                "vp_escalation": False,
-                "customer_facing": False,
+                "priority": priority,
+                "deadline": deadline,
+                "owner": assignee,
+                "status": issue.get("state", "open"),
+                "dependencies": [],
+                "blocks": [],
+                "raw_text": body,
+                "repo": f"{self._owner}/{self._repo}",
+                "issue_number": number,
+                "is_pull_request": is_pr,
+                "pr_state": issue.get("state", "open") if is_pr else None,
+                "mergeable": issue.get("mergeable") if is_pr else None,
+                "draft": issue.get("draft", False) if is_pr else None,
+                "review_comments": issue.get("review_comments", 0) if is_pr else None,
             })
         return normalized
 
     async def health_check(self) -> bool:
-        return self.connected
+        if not self._client:
+            return False
+        try:
+            resp = await self._client.get("/user")
+            resp.raise_for_status()
+            return True
+        except Exception:
+            return False
 
     def get_status(self) -> dict[str, Any]:
         return {

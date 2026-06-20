@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer } from "recharts";
 import { AppHeader } from "../shared/AppHeader";
 import { Sidebar } from "../shared/Sidebar";
 import { Card } from "../shared/Card";
@@ -12,14 +11,6 @@ const TEXT_PRIMARY = "#EDF3EF";
 const TEXT_MUTED = "#8B9890";
 const SAGE = "#8FCBA8";
 const BORDER = "#232B26";
-
-const DEMO_WEEK_DATA = [
-  { day: "Mon", completed: 8, target: 10 },
-  { day: "Tue", completed: 11, target: 10 },
-  { day: "Wed", completed: 7, target: 10 },
-  { day: "Thu", completed: 9, target: 10 },
-  { day: "Fri", completed: 5, target: 10 },
-];
 
 export function Screen5() {
   const [summary, setSummary] = useState<WeeklySummaryResponse | null>(null);
@@ -48,10 +39,10 @@ export function Screen5() {
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
             {[
-              { label: "Tasks tracked", value: loading ? "--" : (summary ? "Live" : "--"), sub: "Live from pipeline" },
+              { label: "Tasks tracked", value: loading ? "--" : (summary ? "Live" : "0"), sub: "Live from pipeline" },
               { label: "Sources", value: "6", sub: "connected" },
-              { label: "LLM extractions", value: loading ? "--" : (summary ? "Live" : "--"), sub: "per pipeline run" },
-              { label: "Alerts generated", value: loading ? "--" : (summary ? "Live" : "--"), sub: "auto-detected" },
+              { label: "LLM extractions", value: loading ? "--" : (summary ? "Active" : "0"), sub: "per pipeline run" },
+              { label: "Alerts generated", value: loading ? "--" : (summary ? "Active" : "0"), sub: "auto-detected" },
             ].map((m) => (
               <Card key={m.label} style={{ padding: "16px 18px" }}>
                 <div style={{ color: TEXT_MUTED, fontSize: 12, marginBottom: 8 }}>{m.label}</div>
@@ -64,22 +55,11 @@ export function Screen5() {
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20, marginBottom: 20 }}>
             <Card style={{ padding: "20px" }}>
               <div style={{ color: TEXT_MUTED, fontSize: 12, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>
-                Weekly completion
+                Weekly Overview
               </div>
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={DEMO_WEEK_DATA} barSize={28} barGap={6}>
-                  <XAxis dataKey="day" tick={{ fill: TEXT_MUTED, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: TEXT_MUTED, fontSize: 11 }} axisLine={false} tickLine={false} width={24} />
-                  <Bar dataKey="completed" radius={[4, 4, 0, 0]}>
-                    {DEMO_WEEK_DATA.map((entry, i) => (
-                      <Cell key={i} fill={i === 4 ? "rgba(143,203,168,0.35)" : SAGE} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-              <div style={{ color: TEXT_MUTED, fontSize: 10, marginTop: 8, textAlign: "center" }}>
-                Demo visualization — per-day completion data coming from pipeline telemetry
-              </div>
+              <p style={{ color: TEXT_MUTED, fontSize: 13, lineHeight: 1.6 }}>
+                Weekly completion data and per-day metrics will appear here once pipeline history accumulates.
+              </p>
             </Card>
 
             <Card style={{ padding: "16px 18px" }}>
@@ -94,7 +74,7 @@ export function Screen5() {
                   <div>
                     <div style={{ color: TEXT_PRIMARY, fontSize: 12, marginBottom: 3 }}>Pipeline</div>
                     <div style={{ color: TEXT_MUTED, fontSize: 11, lineHeight: 1.4, marginBottom: 4 }}>Ingest → Extract → Prioritize → Plan</div>
-                    <StatusPill status="In Progress" />
+                    <StatusPill status="Live" />
                   </div>
                 </div>
               </div>
@@ -124,6 +104,12 @@ export function Screen5() {
               <pre style={{ color: TEXT_MUTED, fontSize: 12, lineHeight: 1.7, whiteSpace: "pre-wrap", margin: 0, fontFamily: "Inter, sans-serif" }}>
                 {summary.summary}
               </pre>
+            </Card>
+          )}
+
+          {!summary && !loading && (
+            <Card style={{ padding: "20px" }}>
+              <p style={{ color: TEXT_MUTED, fontSize: 13 }}>No weekly summary available yet. Run the pipeline to generate one.</p>
             </Card>
           )}
         </main>
