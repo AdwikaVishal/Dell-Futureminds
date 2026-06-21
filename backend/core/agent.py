@@ -14,6 +14,10 @@ from core.normalizer import _infer_team
 from core.tracer import trace
 from core.grounding import verify_grounding
 from core.qa import answer_question as qa_answer_question
+from core.notification_service import notification_service
+from core.dependency_analyzer import DependencyAnalyzer
+from core.calendar_planner import CalendarPlanner
+from core.memory import memory_system
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +44,23 @@ async def run_pipeline() -> DailyPlan:
         alerts = context.get("alerts", [])
         plan = build_daily_plan_from_tasks(ranked_tasks, alerts)
 
+    time_blocked = context.get("time_blocked_plan")
+    if time_blocked:
+        plan.time_blocked_plan = time_blocked
+
+    leverage = context.get("highest_leverage_tasks")
+    if leverage:
+        plan.highest_leverage_tasks = leverage
+
+    deferred = context.get("deferred_tasks_detected")
+    if deferred:
+        plan.deferred_tasks_detected = deferred
+
     store.update(ranked_tasks, plan)
     save_state(ranked_tasks, plan)
     save_trace("pipeline_total", (time.monotonic() - start_time) * 1000)
+
+    notification_service.schedule(plan=plan, tasks=ranked_tasks, alerts=plan.alerts)
 
     elapsed = time.monotonic() - start_time
     logger.info("=== Pipeline finished in %.2fs ===", elapsed)
@@ -88,21 +106,40 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
         alerts_list = check_alerts(updated_ranked)
         new_plan = build_daily_plan_from_tasks(updated_ranked, alerts_list)
 
+        time_blocked = CalendarPlanner.generate_time_blocked_plan(updated_ranked[:min(6, len(updated_ranked))])
+        if time_blocked:
+            new_plan.time_blocked_plan = time_blocked
+
+        leverage = DependencyAnalyzer.find_highest_leverage_tasks(updated_ranked)
+        if leverage:
+            new_plan.highest_leverage_tasks = leverage
+
         store.update(updated_ranked, new_plan)
-        # Generate proactive narrative alert
-        top = ranked_tasks[0] if ranked_tasks else None
+
+        top = updated_ranked[0] if updated_ranked else None
         if top and top.merged_sources and top.vp_escalation:
             store.narrative_alert = (
-            f"I noticed email_008 (VP escalation) and {top.id} are about the same issue "
-            f"— I merged them and placed {top.id} at #1. SLA: {top.deadline}. "
-            f"Reason: {top.rationale}"
-         )
+                f"I noticed {', '.join(top.merged_sources)} and {top.id} are about the same issue "
+                f"— I merged them and placed {top.id} at #1. SLA: {top.deadline}. "
+                f"Dedup confidence: {top.dedup_confidence or 'N/A'}. "
+                f"Reason: {top.rationale}"
+            )
         elif top and top.priority in ("P0", "P1"):
-             store.narrative_alert = (
-            f"⚠ {top.id} is a {top.priority} with deadline {top.deadline}. "
-            f"Placed at #1 automatically. {top.rationale}"
-        )
+            store.narrative_alert = (
+                f"\u26a0 {top.id} is a {top.priority} with deadline {top.deadline}. "
+                f"Placed at #1 automatically. {top.rationale}"
+            )
+
+        if change_summary:
+            store.narrative_alert = f"{store.narrative_alert or ''} | {change_summary}"
+
         save_state(updated_ranked, new_plan)
+        notification_service.schedule(plan=new_plan, tasks=updated_ranked, alerts=new_plan.alerts)
+
+        narrative = getattr(store, "narrative_alert", None)
+        if narrative:
+            notification_service.schedule(narrative=narrative)
+            store.narrative_alert = None
 
         elapsed = time.monotonic() - start_time
         logger.info("=== Reprioritize finished in %.2fs ===", elapsed)

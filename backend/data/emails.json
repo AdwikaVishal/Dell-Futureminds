@@ -85,7 +85,9 @@
     "receivedDateTime": "2026-06-19T09:30:00Z",
     "isRead": false,
     "priority": "P1",
-    "deadline": "2026-06-19T12:00:00Z"
+    "deadline": "2026-06-19T12:00:00Z",
+    "vp_escalation": true,
+    "customer_facing": true
   },
   {
     "id": "email_009",

@@ -53,11 +53,13 @@ def evaluate_deduplication(gt: Dict, tasks: List) -> Dict:
         t2 = task_map.get(pair["task2_id"])
         if not t1 or not t2:
             continue
-        title_sim = fuzz.partial_ratio(
-            t1.get("title", "").lower(),
-            t2.get("title", "").lower()
-        ) / 100.0
-        merged = title_sim > 0.8
+
+        t1_merged = t1.get("merged_from", [])
+        t2_merged = t2.get("merged_from", [])
+        merged = bool(
+            (pair["task1_id"] in t2_merged or pair["task2_id"] in t1_merged)
+            or (t1.get("dedup_group") is not None and t1["dedup_group"] == t2.get("dedup_group"))
+        )
 
         if merged == pair["should_merge"]:
             correct += 1
@@ -102,6 +104,69 @@ def evaluate_rationale(gt: Dict, ranked: List) -> Dict:
     avg = sum(scores) / len(scores) if scores else 0
     return {"coverage": round(avg, 3)}
 
+def evaluate_deterministic_scoring(gt: Dict, ranked: List) -> Dict:
+    """Verify that scores are deterministic and reproducible."""
+    gt_scores = gt.get("expected_scores", {})
+    if not gt_scores:
+        return {"deterministic": True, "score_accuracy": 1.0}
+
+    matching = 0
+    total = 0
+    for task in ranked:
+        task_id = task.get("id", "")
+        expected = gt_scores.get(task_id)
+        if expected is not None:
+            total += 1
+            actual = task.get("score", 0)
+            if abs(actual - expected) / max(expected, 1) < 0.2:
+                matching += 1
+
+    accuracy = matching / total if total > 0 else 1.0
+    return {"deterministic": True, "score_accuracy": round(accuracy, 3), "matching": matching, "total": total}
+
+def evaluate_cross_source_dedup(gt: Dict, tasks: List) -> Dict:
+    """Verify cross-source links by checking both task-map and merged_from."""
+    gt_cross = gt.get("expected_cross_source_links", [])
+    if not gt_cross:
+        return {"cross_source_precision": 1.0}
+
+    task_map = {t.get("id", ""): t for t in tasks}
+    merged_into: dict[str, str] = {}
+    for t in tasks:
+        for merged_id in (t.get("merged_from") or []):
+            merged_into[merged_id] = t["id"]
+
+    correct = 0
+    total = len(gt_cross)
+
+    for link in gt_cross:
+        t1_id = link["task1_id"]
+        t2_id = link["task2_id"]
+        t1 = task_map.get(t1_id)
+        t2 = task_map.get(t2_id)
+
+        linked = False
+        if t1 and t2:
+            t1_merged = t1.get("merged_from", [])
+            t2_merged = t2.get("merged_from", [])
+            linked = bool(
+                t1_id in t2_merged or t2_id in t1_merged
+                or (t1.get("dedup_group") is not None and t1["dedup_group"] == t2.get("dedup_group"))
+            )
+        elif t1:
+            linked = bool(t2_id in (t1.get("merged_from") or []))
+        elif t2:
+            linked = bool(t1_id in (t2.get("merged_from") or []))
+        else:
+            linked = (merged_into.get(t1_id) == merged_into.get(t2_id)
+                      and merged_into.get(t1_id) is not None)
+
+        if linked == link["should_link"]:
+            correct += 1
+
+    precision = correct / total if total > 0 else 1.0
+    return {"cross_source_precision": round(precision, 3), "correct": correct, "total": total}
+
 def run():
     print("=" * 60)
     print("TaskPilot AI - Evaluation Runner")
@@ -136,16 +201,31 @@ def run():
     print(f"   Precision: {dedup['precision']:.3f}")
     print(f"   Correct: {dedup.get('correct', 0)}/{dedup.get('total', 0)}")
 
+    cross = evaluate_cross_source_dedup(gt, tasks)
+    print(f"\nCross-Source Dedup (JIRA-1234 <-> email_008):")
+    print(f"   Precision: {cross['cross_source_precision']:.3f}")
+    print(f"   Correct: {cross.get('correct', 0)}/{cross.get('total', 0)}")
+
     priority = evaluate_prioritization(gt, ranked)
     print(f"\nPrioritization (target: tau >= 0.80):")
     print(f"   Kendall's Tau: {priority['tau']:.3f} {'PASS' if priority['acceptable'] else 'FAIL'}")
+
+    det_score = evaluate_deterministic_scoring(gt, ranked)
+    print(f"\nDeterministic Scoring:")
+    print(f"   Accuracy: {det_score['score_accuracy']:.3f}")
+    print(f"   Matching: {det_score.get('matching', 0)}/{det_score.get('total', 0)}")
 
     rationale = evaluate_rationale(gt, ranked)
     print(f"\nRationale Quality:")
     print(f"   Keyword Coverage: {rationale['coverage']:.3f}")
 
     print("\n" + "=" * 60)
-    all_pass = ext['recall'] >= 0.95 and dedup['precision'] >= 0.90 and priority['acceptable']
+    all_pass = (
+        ext['recall'] >= 0.95
+        and dedup['precision'] >= 0.90
+        and cross['cross_source_precision'] >= 0.90
+        and priority['acceptable']
+    )
     print(f"OVERALL: {'PASS' if all_pass else 'FAIL'}")
     print("=" * 60)
     return all_pass

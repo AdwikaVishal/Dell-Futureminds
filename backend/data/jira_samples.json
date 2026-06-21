@@ -5,12 +5,19 @@
     "title": "Login service returning 503 — customer authentication broken",
     "summary": "Login service returning 503 — customer authentication broken",
     "description": "Users cannot authenticate. Auth service returning 503 errors. Possibly database connection pool exhaustion. Customer-facing P1.",
+    "source_type": "jira",
     "priority": "P1",
     "status": "open",
     "assignee": null,
+    "owner": "backend-team",
     "deadline": "2026-06-21T18:00:00Z",
-    "source": "jira"
-  }
+    "source": "jira",
+    "dependencies": [],
+    "blocks": [],
+    "raw_text": "Login service returning 503 — customer authentication broken. Users cannot authenticate. Auth service returning 503 errors.",
+    "vp_escalation": true,
+    "customer_facing": true
+  },
   {
     "id": "PROJ-101",
     "title": "Fix login page validation error",
