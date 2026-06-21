@@ -164,8 +164,8 @@ if ! git remote | grep -q "^$remote_name$"; then
     fi
 fi
 
-read -p "Enter remote branch to merge (default: aditi-final): " target_branch
-if [ -z "$target_branch" ]; then target_branch="aditi-final"; fi
+read -p "Enter remote branch to merge (default: Aditi-final): " target_branch
+if [ -z "$target_branch" ]; then target_branch="Aditi-final"; fi
 
 write_info "Fetching '$target_branch' from remote '$remote_name'..."
 git fetch "$remote_name" "$target_branch"

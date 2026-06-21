@@ -165,8 +165,8 @@ if ($remoteName -notin $remoteExists) {
     }
 }
 
-$targetBranch = Read-Host "Enter remote branch to merge (default: aditi-final)"
-if (-not $targetBranch) { $targetBranch = "aditi-final" }
+$targetBranch = Read-Host "Enter remote branch to merge (default: Aditi-final)"
+if (-not $targetBranch) { $targetBranch = "Aditi-final" }
 
 Write-Info "Fetching '$targetBranch' from remote '$remoteName'..."
 git fetch $remoteName $targetBranch
