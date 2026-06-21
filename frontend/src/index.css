@@ -1,0 +1,204 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+@source "./**/*.{ts,tsx}";
+@import "tw-animate-css";
+
+:root {
+  --bg: #0E1411;
+  --surface: #161D19;
+  --elevated: #1C2621;
+  --border: #232B26;
+  --border-strong: #323E37;
+  --text-primary: #F4F8F5;
+  --text-secondary: #94A39B;
+  --text-muted: #6B7A72;
+  --success: #84A393;
+  --warning: #D1A775;
+  --danger: #E08585;
+  --info: #85A7E0;
+}
+
+[data-theme="light"] {
+  --bg: #F5F7F4;
+  --surface: #FFFFFF;
+  --elevated: #EEF2EE;
+  --border: #D9E2DA;
+  --border-strong: #C4D0C6;
+  --text-primary: #152018;
+  --text-secondary: #55635A;
+  --text-muted: #73847A;
+  --success: #5C8B70;
+  --warning: #B38649;
+  --danger: #C25A5A;
+  --info: #5A7DC2;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.15);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.25);
+}
+
+/* Thin border utility */
+.border-subtle {
+  border: 1px solid var(--border);
+}
+.border-strong {
+  border: 1px solid var(--border-strong);
+}
+
+/* Card base */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.card-elevated {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #fff 0%, #94A3B8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Score glow */
+.score-glow-red {
+  color: #EF4444;
+  text-shadow: 0 0 20px rgba(239,68,68,0.4);
+}
+.score-glow-amber {
+  color: #F59E0B;
+  text-shadow: 0 0 20px rgba(245,158,11,0.4);
+}
+.score-glow-green {
+  color: #22C55E;
+  text-shadow: 0 0 20px rgba(34,197,94,0.3);
+}
+
+/* Pill badge */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Status indicator dot */
+.dot-pulse {
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.85); }
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 1s ease-out;
+}
+
+/* Agent timeline line */
+.timeline-line {
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, rgba(59,130,246,0.3), rgba(59,130,246,0));
+}
+
+/* Source connection line animation */
+@keyframes drawLine {
+  from { stroke-dashoffset: 200; }
+  to { stroke-dashoffset: 0; }
+}
+
+.animate-draw {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: drawLine 0.8s ease-out forwards;
+}
+
+/* Shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid rgba(59,130,246,0.5);
+  outline-offset: 2px;
+}
+
+/* SVG connection animations */
+.source-line {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+}
