@@ -21,12 +21,7 @@ class IngestionAgent(BaseAgent):
                 await connector.connect()
                 raw = await connector.fetch_tasks()
                 if raw:
-                    # If the connector connected to a live API, raw data needs normalization.
-                    # If using simulated fallback, fetch_tasks already returns normalized data.
-                    if connector.connected:
-                        result[source_type] = connector.normalize(raw)
-                    else:
-                        result[source_type] = raw
+                    result[source_type] = raw
                     connector.last_sync = __import__("datetime").datetime.now(
                         __import__("datetime").timezone.utc
                     ).isoformat()
@@ -36,4 +31,21 @@ class IngestionAgent(BaseAgent):
                 logger.warning("Connector %s failed: %s — skipping (live API only)", source_type, e)
                 connector.error = str(e)
 
+        total_count = sum(len(v) for v in result.values())
+        self.remember("last_ingestion_count", str(total_count))
+
         return result
+
+    async def reflect(self, context: dict[str, Any]) -> dict[str, Any]:
+        reflection = await super().reflect(context)
+
+        connector_statuses = []
+        for source_type, connector in connector_registry.items():
+            status = "connected" if connector.connected else f"error: {connector.error or 'unknown'}"
+            connector_statuses.append(f"{source_type}={status}")
+
+        reflection["observations"] = [
+            f"Connectors: {', '.join(connector_statuses)}"
+        ]
+
+        return reflection

@@ -6,6 +6,7 @@ from typing import Optional
 from core.state import store, save_state, save_trace
 from core.connector_registry import connector_registry
 from core.agent import run_pipeline
+from core.memory import memory_system
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +19,12 @@ SCHEDULES: dict[str, int] = {
     "transcript": 600,
 }
 
+
 class SyncEngine:
     def __init__(self):
         self._tasks: dict[str, asyncio.Task] = {}
         self._running = False
+        self._last_event_count: dict[str, int] = {}
 
     async def start(self):
         if self._running:
@@ -66,9 +69,20 @@ class SyncEngine:
 
             raw = await connector.fetch_tasks()
             if raw:
+                event_count = len(raw)
+                prev_count = self._last_event_count.get(source_type, 0)
+                self._last_event_count[source_type] = event_count
+
                 logger.info("Synced %d items from %s", len(raw), source_type)
                 connector.last_sync = start.isoformat()
-                await run_pipeline()
+
+                if event_count != prev_count:
+                    logger.info("New data detected from %s (%d -> %d) — reprioritizing", source_type, prev_count, event_count)
+                    await run_pipeline()
+                    memory_system.record_agent_memory("sync_engine", f"last_detected_change_{source_type}",
+                                                      f"{prev_count}->{event_count} at {datetime.now(timezone.utc).isoformat()}")
+                else:
+                    logger.info("No changes in %s (still %d items)", source_type, event_count)
             return True
         except Exception as e:
             logger.error("Sync failed for %s: %s", source_type, e)

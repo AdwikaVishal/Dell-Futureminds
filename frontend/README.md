@@ -1,11 +1,39 @@
+# TaskPilot AI — Frontend
 
-  # App Builder
+Mission Control dashboard for the TaskPilot AI platform.
 
-  This is a code bundle for App Builder. The original project is available at https://www.figma.com/design/kZU0W1ZeL1aZPaJrXOX7GS/App-Builder.
+## Features
 
-  ## Running the code
+- **Mission Control Dashboard**: Tasks, alerts, calendar, dependency graph
+- **Daily Plan**: Top priorities with score breakdowns
+- **All Tasks**: Full task list with filtering
+- **AI Chat Assistant**: Natural language Q&A about tasks
+- **Sources Dashboard**: Connector status and extraction visualization
+- **Weekly Summary**: AI-generated weekly overview
+- **Pipeline Traces**: Performance monitoring
+- **Smart Settings**: API key management
 
-  Run `npm i` to install the dependencies.
+## Tech Stack
 
-  Run `npm run dev` to start the development server.
-  
+- React 18 + TypeScript
+- Vite 8
+- Tailwind CSS v4
+- shadcn/ui + Radix primitives
+- Recharts (charts)
+- React Flow (dependency graph)
+- Framer Motion (animations)
+
+## Setup
+
+```bash
+npm install
+npm run dev
+```
+
+The dev server runs on port 5173 and proxies API calls to port 8000.
+
+## Build
+
+```bash
+npm run build
+```

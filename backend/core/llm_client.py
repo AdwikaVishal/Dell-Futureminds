@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 from dotenv import load_dotenv
 import httpx
+from core.tracer import trace
 
 load_dotenv()
 
@@ -73,54 +74,38 @@ class LLMBackend(ABC):
     ) -> LLMResponse: ...
 
 
-class OpenAICompatibleBackend(LLMBackend):
+# ---------------------------------------------------------------------------
+# Gemini backend (PRIMARY)
+# Uses Google's OpenAI-compatible endpoint.
+# Set in .env:
+#   GEMINI_API_KEY=AIza...
+#   GEMINI_MODEL=gemini-2.5-flash   (default)
+# ---------------------------------------------------------------------------
+
+class GeminiBackend(LLMBackend):
     def __init__(self) -> None:
-        self.api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
-        self.base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
-        self.model = self._sanitize_model(os.environ.get("LLM_MODEL", "grok-4"))
+        self.api_key = os.environ.get("GEMINI_API_KEY", "")
+        self.model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
 
-    @staticmethod
-    def _sanitize_model(model: str) -> str:
-        """Normalize model names like 'grok 3.0' -> 'grok-3'."""
-        m = model.strip().lower()
-        # 'grok 3.0' or 'grok 3' -> grok-3
-        import re
-        m = re.sub(r"\s+", "-", m)
-        m = re.sub(r"\.0$", "", m)
-        return m
+    @property
+    def name(self) -> str:
+        return f"Gemini({self.model})"
 
     @classmethod
-    async def list_available_models(cls) -> list[str]:
-        """Fetch available models from the xAI API."""
-        api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
-        base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+    async def check_connectivity(cls) -> tuple[bool, str]:
+        api_key = os.environ.get("GEMINI_API_KEY", "")
         if not api_key:
-            return ["grok-4", "grok-3", "grok-2"]
-        headers = {"Authorization": f"Bearer {api_key}"}
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(f"{base_url}/models", headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-                models_list = data.get("data") or data.get("models") or []
-                return [m.get("id") or m.get("name", "") for m in models_list if m.get("id") or m.get("name")]
-        except Exception:
-            return ["grok-4", "grok-3", "grok-2"]
-
-    @classmethod
-    async def check_connectivity(cls) -> tuple[bool, str, list[str]]:
-        """Check if the LLM backend is reachable. Returns (ok, message, available_models)."""
-        api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
-        if not api_key:
-            return False, "LLM_API_KEY not set", []
-        base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
-        model = OpenAICompatibleBackend._sanitize_model(os.environ.get("LLM_MODEL", "grok-4"))
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-
+            return False, "GEMINI_API_KEY not set"
+        model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
-                    f"{base_url}/chat/completions",
+                    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
                     headers=headers,
                     json={
                         "model": model,
@@ -129,26 +114,9 @@ class OpenAICompatibleBackend(LLMBackend):
                     },
                 )
                 resp.raise_for_status()
-                models = await cls.list_available_models()
-                return True, f"LLM available (model={model})", models
-        except httpx.HTTPStatusError as e:
-            body = ""
-            if e.response is not None:
-                try:
-                    body = e.response.json().get("error", e.response.text[:200])
-                except Exception:
-                    body = e.response.text[:200]
-            models = await cls.list_available_models()
-            if e.response.status_code == 403:
-                return False, f"LLM unavailable: {body}", models
-            return False, f"LLM error {e.response.status_code}: {body}", models
+                return True, f"Gemini available (model={model})"
         except Exception as e:
-            models = await cls.list_available_models()
-            return False, f"LLM unreachable: {e}", models
-
-    @property
-    def name(self) -> str:
-        return f"OpenAICompatible({self.model})"
+            return False, f"Gemini unreachable: {e}"
 
     async def generate(
         self,
@@ -159,7 +127,7 @@ class OpenAICompatibleBackend(LLMBackend):
         max_output_tokens: int = 2048,
     ) -> LLMResponse:
         if not self.api_key:
-            raise LLMClientError("LLM_API_KEY is not set")
+            raise LLMClientError("GEMINI_API_KEY is not set")
 
         messages: list[dict[str, str]] = []
         if system:
@@ -191,9 +159,7 @@ class OpenAICompatibleBackend(LLMBackend):
             data = response.json()
         latency_ms = (time.monotonic() - start) * 1000
 
-        choice = data["choices"][0]
-        text = choice["message"]["content"] or ""
-
+        text = data["choices"][0]["message"]["content"] or ""
         usage = data.get("usage", {})
         input_tokens = usage.get("prompt_tokens", 0) or 0
         output_tokens = usage.get("completion_tokens", 0) or 0
@@ -213,6 +179,142 @@ class OpenAICompatibleBackend(LLMBackend):
             json_parse_error=json_parse_error,
         )
 
+
+# ---------------------------------------------------------------------------
+# Grok backend (FALLBACK #1)
+# Used when Gemini fails or GEMINI_API_KEY is not set.
+# Set in .env:
+#   LLM_API_KEY=xai-...
+#   LLM_MODEL=grok-3-mini   (default)
+#   LLM_BASE_URL=https://api.x.ai/v1
+# ---------------------------------------------------------------------------
+
+class GrokBackend(LLMBackend):
+    def __init__(self) -> None:
+        self.api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
+        self.base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+        self.model = self._sanitize_model(os.environ.get("LLM_MODEL", "grok-3-mini"))
+
+    @staticmethod
+    def _sanitize_model(model: str) -> str:
+        m = model.strip().lower()
+        m = re.sub(r"\s+", "-", m)
+        m = re.sub(r"\.0$", "", m)
+        return m
+
+    @property
+    def name(self) -> str:
+        return f"Grok({self.model})"
+
+    @classmethod
+    async def check_connectivity(cls) -> tuple[bool, str, list[str]]:
+        api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
+        if not api_key:
+            return False, "LLM_API_KEY not set", []
+        base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+        model = GrokBackend._sanitize_model(os.environ.get("LLM_MODEL", "grok-3-mini"))
+        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1,
+                    },
+                )
+                resp.raise_for_status()
+                return True, f"Grok available (model={model})", [model]
+        except Exception as e:
+            return False, f"Grok unreachable: {e}", []
+
+    async def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        json_mode: bool = False,
+        temperature: float = 0.2,
+        max_output_tokens: int = 2048,
+    ) -> LLMResponse:
+        if not self.api_key:
+            raise LLMClientError("LLM_API_KEY (Grok) is not set")
+
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_output_tokens,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        start = time.monotonic()
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=body,
+            )
+            response.raise_for_status()
+            data = response.json()
+        latency_ms = (time.monotonic() - start) * 1000
+
+        text = data["choices"][0]["message"]["content"] or ""
+        usage = data.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", 0) or 0
+        output_tokens = usage.get("completion_tokens", 0) or 0
+
+        parsed_json = None
+        json_parse_error = None
+        if json_mode:
+            parsed_json, json_parse_error = _extract_json(text)
+
+        return LLMResponse(
+            text=text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            model=self.model,
+            parsed_json=parsed_json,
+            json_parse_error=json_parse_error,
+        )
+
+
+# ---------------------------------------------------------------------------
+# OpenAICompatibleBackend — kept for backwards compatibility with main.py
+# check_connectivity(). Points to Grok by default.
+# ---------------------------------------------------------------------------
+
+class OpenAICompatibleBackend(GrokBackend):
+    """Alias of GrokBackend. Kept so main.py startup check still works."""
+
+    @classmethod
+    async def check_connectivity(cls) -> tuple[bool, str, list[str]]:
+        # Try Gemini first, then Grok
+        gem_ok, gem_msg = await GeminiBackend.check_connectivity()
+        if gem_ok:
+            return True, f"Gemini (primary): {gem_msg}", []
+        grok_ok, grok_msg, models = await GrokBackend.check_connectivity()
+        if grok_ok:
+            return True, f"Grok (fallback): {grok_msg}", models
+        return False, f"Both LLMs unavailable. Gemini: {gem_msg} | Grok: {grok_msg}", []
+
+
+# ---------------------------------------------------------------------------
+# Heuristic fallback (FALLBACK #2 — no API key needed)
+# ---------------------------------------------------------------------------
 
 class HeuristicBackend(LLMBackend):
     @property
@@ -250,7 +352,7 @@ class HeuristicBackend(LLMBackend):
             elif "weekly summary" in system_lower or "standup" in system_lower:
                 text = (
                     "## Accomplished This Week\n\n"
-                    "LLM summary unavailable in heuristic mode. Check your task history manually.\n\n"
+                    "LLM summary unavailable in heuristic mode.\n\n"
                     "## In Progress / Carried Over\n\n"
                     "Review your active task list for current priorities.\n\n"
                     "## Blockers & Deferred\n\n"
@@ -278,9 +380,19 @@ class HeuristicBackend(LLMBackend):
         for task in tasks:
             score = self._compute_score(task)
             rationale = self._build_rationale(task, score)
+            du = self._deadline_urgency(task.get("deadline"))
+            sv = self._severity_score(task.get("priority"))
+            bi = self._business_impact(task.get("vp_escalation", False), task.get("customer_facing", False))
+            db = self._dependency_blocking(task.get("blocks", []))
             scored.append({
                 "id": task.get("id", ""),
                 "score": round(score, 1),
+                "score_breakdown": {
+                    "deadline_urgency": round(du, 1),
+                    "severity": round(sv, 1),
+                    "business_impact": round(bi, 1),
+                    "dependency_blocking": round(db, 1),
+                },
                 "rationale": rationale,
             })
         scored.sort(key=lambda x: x["score"], reverse=True)
@@ -312,8 +424,7 @@ class HeuristicBackend(LLMBackend):
             return 30.0
 
     def _severity_score(self, priority: Optional[str]) -> float:
-        mapping = {"P0": 100, "P1": 75, "P2": 50, "P3": 25}
-        return mapping.get(priority or "", 25)
+        return {"P0": 100, "P1": 75, "P2": 50, "P3": 25}.get(priority or "", 25)
 
     def _business_impact(self, vp_escalation: bool, customer_facing: bool) -> float:
         if vp_escalation:
@@ -338,8 +449,8 @@ class HeuristicBackend(LLMBackend):
         components = {"deadline urgency": du, "severity": sv, "business impact": bi, "dependency blocking": db}
         biggest = max(components, key=components.get)
         return (
-            f"Score breakdown: deadline_urgency={du:.0f}*0.35, severity={sv:.0f}*0.30, "
-            f"business_impact={bi:.0f}*0.20, dependency_blocking={db:.0f}*0.15 = {score:.1f}. "
+            f"Score breakdown: deadline_urgency={du:.0f}×0.35, severity={sv:.0f}×0.30, "
+            f"business_impact={bi:.0f}×0.20, dependency_blocking={db:.0f}×0.15 = {score:.1f}. "
             f"Biggest driver: {biggest}."
         )
 
@@ -364,123 +475,37 @@ class HeuristicBackend(LLMBackend):
         return "\n".join(lines)
 
     def _heuristic_extract(self, prompt: str) -> list[dict[str, Any]]:
-        """Extract tasks from unstructured text using pattern matching."""
-        import re
         tasks = []
-        seen_titles = set()
-        lines = prompt.split("\n")
-
-        # Pattern: numbered or bulleted action items
-        patterns = [
-            re.compile(r"(?:^|\s)(?:\d+[.)]\s*|[-*]\s+)(.+?)(?:\s*\(([^)]*)\))?\s*$", re.MULTILINE),
-            re.compile(r"(?:^|\s)(?:TODO|FIXME|HACK|XXX)[:\s]+(.+)$", re.MULTILINE),
-            re.compile(r"action\s*item[s:]*\s*\n?\s*[-*\d.)\s]*(.+)$", re.IGNORECASE | re.MULTILINE),
+        seen_titles: set[str] = set()
+        action_patterns = [
+            re.compile(r"(?:can you|please|could you|make sure to|don't forget to|remember to)\s+(.+?)(?:\.|$)", re.IGNORECASE),
+            re.compile(r"(?:TODO|FIXME|ACTION)[:\s]+(.+)$", re.MULTILINE),
         ]
-
-        for pattern in patterns:
+        for pattern in action_patterns:
             for match in pattern.finditer(prompt):
-                title = match.group(1).strip()
-                if not title or len(title) < 3:
+                title = match.group(1).strip().rstrip(".")
+                if not title or len(title) < 5:
                     continue
-                # Skip lines that look like section headers, agenda items, or meeting notes
-                skip_words = {"agenda", "opening", "blockers", "capacity", "attendees", "duration",
-                              "next meeting", "action items", "review", "discussion", "closing",
-                              "welcome", "introduction"}
-                if title.lower().rstrip(":").strip() in skip_words:
-                    continue
-                if title.lower().startswith(("agenda:", "topic:", "item:", "note:", "from ")):
-                    continue
-                key = title.lower().rstrip(".")
+                key = title.lower()
                 if key not in seen_titles:
                     seen_titles.add(key)
-                    task = {
-                        "id": f"heuristic_{len(tasks) + 1:03d}",
-                        "title": title.rstrip("."),
-                        "description": "",
-                        "source": "heuristic_extraction",
-                        "source_type": "extracted",
-                        "priority": "P2",
-                        "deadline": None,
+                    tasks.append({
+                        "title": title,
                         "owner": None,
-                        "status": "open",
-                        "dependencies": [],
-                        "blocks": [],
-                        "raw_text": title,
-                    }
-                    # Check for owner/assignee — prefer @mention before "by " to avoid
-                    # false positives like "by EOD"
-                    owner_from_at = None
-                    owner_from_by = None
-                    for prefix in ["@"]:
-                        idx = title.find(prefix)
-                        if idx != -1:
-                            # Extract the word after @ until space, parens, or end
-                            rest = title[idx + 1:]
-                            match = re.match(r"(\w[\w.\-]*)", rest)
-                            if match:
-                                owner_from_at = match.group(1)
-                    for prefix in ["by ", "assigned to "]:
-                        idx = title.lower().find(prefix)
-                        if idx != -1:
-                            rest = title[idx + len(prefix):]
-                            # Get the next word (possibly a name)
-                            match = re.match(r"(\w[\w.\-]*)", rest)
-                            if match and match.group(1).lower() not in {"eod", "today", "tomorrow", "friday", "monday", "tuesday", "wednesday", "thursday", "next", "this"}:
-                                owner_from_by = match.group(1)
-                    if owner_from_at:
-                        task["owner"] = owner_from_at
-                        title_clean = title.rsplit("(@" + owner_from_at + ")", 1)[0].strip()
-                        title_clean = title_clean.rsplit("(@" + owner_from_at, 1)[0].strip()
-                        if title_clean:
-                            task["title"] = title_clean.rstrip(" ,;")
-                    elif owner_from_by:
-                        task["owner"] = owner_from_by
-                        title_clean = re.split(rf"\s+by\s+{re.escape(owner_from_by)}", title, flags=re.IGNORECASE)[0].strip()
-                        if title_clean:
-                            task["title"] = title_clean.rstrip(" ,;")
-
-                    # Check for deadline patterns like "by Friday" or "(due: date)"
-                    deadline_match = re.search(r"by\s+(\w+(?:\s+\d+)?(?:\s*(?:st|nd|rd|th))?(?:\s*,?\s*\d{4})?)", title, re.IGNORECASE)
-                    if deadline_match and not re.search(r"(?:stand|near|close|pass|go|fly)", deadline_match.group(0), re.IGNORECASE):
-                        pass  # store raw deadline text
-                    if "p0" in title.lower():
-                        task["priority"] = "P0"
-                    elif "p1" in title.lower():
-                        task["priority"] = "P1"
-                    elif "p3" in title.lower():
-                        task["priority"] = "P3"
-                    elif "p4" in title.lower():
-                        task["priority"] = "P4"
-                    elif re.search(r"\burge?n?t\b|\bcritical\b|\bblocker\b", title, re.IGNORECASE):
-                        task["priority"] = "P0"
-                    elif re.search(r"\bhigh\b|\bimportant\b", title, re.IGNORECASE):
-                        task["priority"] = "P1"
-
-                    tasks.append(task)
-
-        if not tasks:
-            # Fallback: create a single extracted item from raw text
-            tasks.append({
-                "id": "heuristic_001",
-                "title": prompt.strip()[:100] if prompt.strip() else "Extracted task",
-                "description": prompt.strip()[:500],
-                "source": "heuristic_extraction",
-                "source_type": "extracted",
-                "priority": "P2",
-                "deadline": None,
-                "owner": None,
-                "status": "open",
-                "dependencies": [],
-                "blocks": [],
-                "raw_text": prompt.strip()[:500],
-            })
-
+                        "deadline": None,
+                        "confidence": 0.7,
+                        "source_sentence": match.group(0).strip(),
+                    })
         return tasks
 
 
+# ---------------------------------------------------------------------------
+# Rules engine (FALLBACK #3 — absolute last resort)
+# ---------------------------------------------------------------------------
+
 class RulesEngineBackend(LLMBackend):
     HIGH_KEYWORDS = {"critical", "urgent", "production", "hotfix", "p0", "severe", "outage"}
-    MEDIUM_KEYWORDS = {"review", "meeting", "docs", "documentation", "refactor", "cleanup", "test"}
+    MEDIUM_KEYWORDS = {"review", "meeting", "docs", "documentation", "refactor", "test"}
 
     @property
     def name(self) -> str:
@@ -502,30 +527,23 @@ class RulesEngineBackend(LLMBackend):
             text = json.dumps(scored)
             parsed_json = scored
         elif json_mode and "extract" in system_lower:
-            text = json.dumps(self._rules_extract(prompt))
-            parsed_json = json.loads(text)
+            heur = HeuristicBackend()
+            extracted = heur._heuristic_extract(prompt)
+            text = json.dumps(extracted)
+            parsed_json = extracted
         elif json_mode:
-            text = json.dumps({
-                "answer": "Rules engine: Unable to answer questions. Please check your task list manually.",
-                "citations": [],
-            })
-            parsed_json = json.loads(text)
+            result = {"answer": "Rules engine: Unable to answer. Please check your task list manually.", "citations": []}
+            text = json.dumps(result)
+            parsed_json = result
         else:
-            text = (
-                "Rules engine mode: Unable to generate narrative responses. "
-                "Please check your task list manually."
-            )
+            text = "Rules engine mode: Unable to generate narrative responses."
             parsed_json = None
 
         latency_ms = (time.monotonic() - start) * 1000
         return LLMResponse(
-            text=text,
-            input_tokens=0,
-            output_tokens=0,
-            latency_ms=latency_ms,
-            model="rules-engine",
-            parsed_json=parsed_json,
-            json_parse_error=None,
+            text=text, input_tokens=0, output_tokens=0,
+            latency_ms=latency_ms, model="rules-engine",
+            parsed_json=parsed_json, json_parse_error=None,
         )
 
     def _rules_prioritize(self, prompt: str) -> list[dict[str, Any]]:
@@ -544,23 +562,29 @@ class RulesEngineBackend(LLMBackend):
             scored.append({
                 "id": task.get("id", ""),
                 "score": round(score, 1),
+                "score_breakdown": {
+                    "deadline_urgency": 0,
+                    "severity": score,
+                    "business_impact": 0,
+                    "dependency_blocking": 0,
+                },
                 "rationale": f"Rules engine: keyword-based score of {score:.0f}.",
             })
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored
 
-    def _rules_extract(self, prompt: str) -> list[dict[str, Any]]:
-        """Reuse heuristic extraction as the final fallback."""
-        heur = HeuristicBackend()
-        return heur._heuristic_extract(prompt)
 
+# ---------------------------------------------------------------------------
+# Resilient client — tries Gemini first, then Grok, then heuristic, then rules
+# ---------------------------------------------------------------------------
 
 class ResilientLLMClient:
     def __init__(self) -> None:
         self.backends: list[LLMBackend] = [
-            OpenAICompatibleBackend(),
-            HeuristicBackend(),
-            RulesEngineBackend(),
+            GeminiBackend(),       # PRIMARY
+            GrokBackend(),         # FALLBACK #1
+            HeuristicBackend(),    # FALLBACK #2
+            RulesEngineBackend(),  # FALLBACK #3
         ]
 
     async def call_llm(
@@ -574,15 +598,19 @@ class ResilientLLMClient:
         last_error: Optional[Exception] = None
         for backend in self.backends:
             try:
-                return await backend.generate(
+                logger.debug("Trying backend: %s", backend.name)
+                response = await backend.generate(
                     prompt=prompt,
                     system=system,
                     json_mode=json_mode,
                     temperature=temperature,
                     max_output_tokens=max_output_tokens,
                 )
+                if backend.name not in ("Heuristic", "RulesEngine"):
+                    logger.info("LLM call succeeded via %s", backend.name)
+                return response
             except Exception as e:
-                logger.warning("Backend %s failed: %s", backend.name, e)
+                logger.warning("Backend %s failed: %s — trying next", backend.name, e)
                 last_error = e
                 continue
         raise LLMClientError(f"All backends failed. Last error: {last_error}")
@@ -591,6 +619,7 @@ class ResilientLLMClient:
 _client = ResilientLLMClient()
 
 
+@trace("llm_call")
 async def call_llm(
     prompt: str,
     system: Optional[str] = None,

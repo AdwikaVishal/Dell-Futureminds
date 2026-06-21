@@ -6,6 +6,28 @@ from typing import Any
 from models.task import Task
 
 
+_TEAM_MAP: dict[str, str] = {
+    "ai-team": "ai-team",
+    "backend-team": "backend-team",
+    "frontend-team": "frontend-team",
+    "qa-team": "qa-team",
+    "alex": "frontend-team",
+    "jen": "backend-team",
+    "mia": "backend-team",
+    "mike": "devops-team",
+    "sarah": "qa-team",
+    "adwika": "backend-team",
+    "saatvika": "frontend-team",
+}
+
+
+def _infer_team(owner: str | None) -> str | None:
+    if owner is None:
+        return None
+    o = owner.strip().lower()
+    return _TEAM_MAP.get(o, "default")
+
+
 def _parse_date(val: Any) -> str | None:
     if val is None:
         return None
@@ -33,6 +55,10 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             dependencies=item.get("dependencies", []),
             blocks=item.get("blocks", []),
             raw_text=item.get("raw_text", ""),
+            assignee=item.get("owner"),
+            team=_infer_team(item.get("owner")),
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     for item in defects:
@@ -49,6 +75,10 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             dependencies=item.get("dependencies", []),
             blocks=item.get("blocks", []),
             raw_text=item.get("raw_text", ""),
+            assignee=item.get("owner"),
+            team=_infer_team(item.get("owner")),
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     for item in emails:
@@ -65,6 +95,10 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             dependencies=[],
             blocks=[],
             raw_text=item.get("body", ""),
+            assignee=None,
+            team=None,
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     return tasks
@@ -86,5 +120,7 @@ def normalize_connector_payload(raw: list[dict[str, Any]], source_type: str) -> 
             "dependencies": item.get("dependencies", []),
             "blocks": item.get("blocks", []),
             "raw_text": item.get("raw_text", ""),
+            "vp_escalation": item.get("vp_escalation", False),
+            "customer_facing": item.get("customer_facing", False),
         })
     return normalized

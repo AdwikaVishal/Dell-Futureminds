@@ -23,14 +23,17 @@ class WebSocketManager:
 
     async def broadcast(self, channel: str, event: str, data: Any):
         payload = json.dumps({"event": event, "data": data}, default=str)
+        connections = self._connections.get(channel)
+        if not connections:
+            return
         dead = set()
-        for ws in self._connections.get(channel, set()):
+        for ws in list(connections):
             try:
                 await ws.send_text(payload)
             except Exception:
                 dead.add(ws)
         if dead:
-            self._connections.get(channel, set()).difference_update(dead)
+            connections.difference_update(dead)
 
     async def broadcast_alerts(self, alerts: list[dict]):
         await self.broadcast("broadcast", "alerts_updated", alerts)

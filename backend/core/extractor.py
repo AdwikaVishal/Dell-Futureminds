@@ -7,6 +7,7 @@ from typing import Any
 
 from core.llm_client import call_llm
 from core.prompts import build_extraction_prompt
+from core.tracer import trace
 from models.task import Task
 
 CONFIDENCE_THRESHOLD = 0.65
@@ -65,10 +66,16 @@ def _parse_extracted_items(
 
 
 async def _extract_single_email(email: dict[str, Any]) -> list[Task]:
-    email_id = email.get("email_id", f"EML-{uuid.uuid4().hex[:6]}")
-    body = email.get("body", "")
-    subject = email.get("subject", "")
-    sender = email.get("from_name", email.get("from", ""))
+    email_id = email.get("email_id") or email.get("id", f"EML-{uuid.uuid4().hex[:6]}")
+    subject = email.get("subject") or email.get("title", "")
+    body = email.get("body")
+    if isinstance(body, dict):
+        body = body.get("content", "")
+    if not body:
+        body = email.get("body_preview") or email.get("bodyPreview") or email.get("raw_text", "")
+    sender = email.get("from_name") or email.get("from", "")
+    if isinstance(sender, dict):
+        sender = sender.get("emailAddress", {}).get("address", "") or sender.get("displayName", "")
     full_text = f"From: {sender}\nSubject: {subject}\n\n{body}"
     system, user_prompt = build_extraction_prompt(
         source_text=full_text,
@@ -85,6 +92,7 @@ async def _extract_single_email(email: dict[str, Any]) -> list[Task]:
     return _parse_extracted_items(raw_items, source_id=email_id, source_type="email", raw_source_text=full_text)
 
 
+@trace("extraction")
 async def extract_from_emails(email_inbox: list[dict[str, Any]]) -> list[Task]:
     results = await asyncio.gather(
         *[_extract_single_email(email) for email in email_inbox],

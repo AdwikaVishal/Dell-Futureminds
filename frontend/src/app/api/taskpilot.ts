@@ -24,6 +24,10 @@ export type Task = {
   vp_escalation?: boolean;
   customer_facing?: boolean;
   dedup_group?: string | null;
+  dedup_explanation?: string | null;
+  dedup_confidence?: number | null;
+  blocking_impact_score?: number | null;
+  time_block?: string | null;
 };
 
 export type RankedTask = Task & {
@@ -46,6 +50,48 @@ export type DailyPlan = {
   deferred: RankedTask[];
   blocked: RankedTask[];
   alerts: Alert[];
+  ranked_tasks: RankedTask[];
+  time_blocked_plan?: TimeBlock[] | null;
+  highest_leverage_tasks?: LeverageTask[] | null;
+  deferred_tasks_detected?: DeferredTask[] | null;
+};
+
+export type TimeBlock = {
+  start: string;
+  end: string;
+  task_id: string;
+  title: string;
+  priority?: string | null;
+  score: number;
+  slot_type: string;
+};
+
+export type LeverageTask = {
+  task_id: string;
+  title: string;
+  leverage_score: number;
+  blocks_directly: number;
+  blocks_transitively: number;
+  blocked_by: string[];
+};
+
+export type DeferredTask = {
+  task_id: string;
+  title: string;
+  priority?: string | null;
+  source_type?: string;
+  appeared_in_last_n_runs: number;
+  reason: string;
+};
+
+export type CalendarEvent = {
+  id: number;
+  event_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  is_all_day: number;
+  source: string;
 };
 
 export type ChatResponse = {
@@ -97,9 +143,41 @@ export type MetricsSummary = {
   has_plan: boolean;
 };
 
-export type WebSocketEvent = {
-  event: string;
-  data: unknown;
+export type DashboardResponse = {
+  plan: DailyPlan;
+  dependency_analysis: {
+    critical_path: string[];
+    blocking_impacts: Record<string, BlockingImpact>;
+    highest_leverage_tasks: LeverageTask[];
+    unblocking_recommendations: UnblockingRecommendation[];
+  };
+  time_blocked_plan?: { time_blocks: TimeBlock[]; unavailable_slots: { start: string; end: string; title: string }[] } | null;
+  today_calendar_events: CalendarEvent[];
+  deferred_tasks: DeferredTask[];
+  team_velocity: { daily_counts: { day: string; completed: number; total: number }[] };
+  completion_patterns: { peak_completion_patterns: { hour: number; day: number; count: number }[] };
+  user_preferences: Record<string, string>;
+};
+
+export type BlockingImpact = {
+  task_id: string;
+  title: string;
+  blocks_directly: number;
+  blocks_transitively: number;
+  total_impact_score: number;
+  blocked_by_ids: string[];
+  blocked_by_names: string[];
+  blocking_ids: string[];
+  blocking_names: string[];
+};
+
+export type UnblockingRecommendation = {
+  blocked_task_id: string;
+  blocked_task_title: string;
+  blocking_task_id: string;
+  blocking_task_title: string;
+  blocking_task_status: string;
+  suggestion: string;
 };
 
 const API_BASE = "";
@@ -135,6 +213,10 @@ export async function getTasks(params?: { source_type?: string; priority?: strin
   return jsonFetch<Task[]>(url.toString());
 }
 
+export async function getDashboard(): Promise<DashboardResponse> {
+  return jsonFetch<DashboardResponse>(`${API_BASE}/api/dashboard`);
+}
+
 export async function chat(message: string): Promise<ChatResponse> {
   return jsonFetch<ChatResponse>(`${API_BASE}/api/chat`, {
     method: "POST",
@@ -149,13 +231,8 @@ export async function injectTask(req: InjectRequest): Promise<DailyPlan> {
   });
 }
 
-export type WeeklySummaryResponse = {
-  summary: string;
-  generated_at: string | null;
-};
-
-export async function getWeeklySummary(): Promise<WeeklySummaryResponse> {
-  return jsonFetch<WeeklySummaryResponse>(`${API_BASE}/api/weekly-summary`);
+export async function getWeeklySummary(): Promise<{ summary: string; generated_at: string | null }> {
+  return jsonFetch<{ summary: string; generated_at: string | null }>(`${API_BASE}/api/weekly-summary`);
 }
 
 export async function getSources(): Promise<SourcesResponse> {
@@ -166,6 +243,10 @@ export async function getMetrics(): Promise<MetricsSummary> {
   return jsonFetch<MetricsSummary>(`${API_BASE}/api/metrics`);
 }
 
+export async function getRecentExtractions(): Promise<{ extractions: any[]; total: number }> {
+  return jsonFetch(`${API_BASE}/api/extractions/recent`);
+}
+
 export async function syncNow(sourceType?: string): Promise<void> {
   const url = sourceType
     ? `${API_BASE}/api/sync/now?source_type=${sourceType}`
@@ -173,24 +254,41 @@ export async function syncNow(sourceType?: string): Promise<void> {
   await jsonFetch<{ status: string }>(url, { method: "POST" });
 }
 
-export function createWebSocket(
-  onEvent: (event: WebSocketEvent) => void,
-  onOpen?: () => void,
-  onClose?: () => void,
-): WebSocket {
+export async function getCalendarToday(): Promise<{ events: CalendarEvent[]; unavailable_slots: any[] }> {
+  return jsonFetch(`${API_BASE}/api/calendar/today`);
+}
+
+export async function getDependencyAnalysis(): Promise<any> {
+  return jsonFetch(`${API_BASE}/api/dependency-analysis`);
+}
+
+export async function getMemoryPreferences(): Promise<{ preferences: Record<string, string> }> {
+  return jsonFetch(`${API_BASE}/api/memory/preferences`);
+}
+
+type WsCallback = (event: { event: string; data: unknown }) => void;
+
+let _sharedWs: WebSocket | null = null;
+let _wsCallbacks = new Set<WsCallback>();
+let _wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+function _startWs(): void {
+  if (_sharedWs && (_sharedWs.readyState === WebSocket.OPEN || _sharedWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/ws`;
   const ws = new WebSocket(wsUrl);
+  _sharedWs = ws;
 
   ws.onopen = () => {
     console.log("[WS] Connected to TaskPilot");
-    onOpen?.();
   };
 
   ws.onmessage = (msg) => {
     try {
-      const event = JSON.parse(msg.data) as WebSocketEvent;
-      onEvent(event);
+      const event = JSON.parse(msg.data) as { event: string; data: unknown };
+      _wsCallbacks.forEach((cb) => cb(event));
     } catch {
       console.warn("[WS] Failed to parse message:", msg.data);
     }
@@ -198,16 +296,41 @@ export function createWebSocket(
 
   ws.onclose = () => {
     console.log("[WS] Disconnected from TaskPilot");
-    onClose?.();
-    setTimeout(() => {
-      console.log("[WS] Attempting reconnect...");
-      createWebSocket(onEvent, onOpen, onClose);
-    }, 5000);
+    if (_sharedWs === ws) {
+      _sharedWs = null;
+    }
+    if (_wsCallbacks.size > 0) {
+      _wsReconnectTimer = setTimeout(() => {
+        if (_wsCallbacks.size > 0) {
+          _startWs();
+        }
+      }, 3000);
+    }
   };
 
-  ws.onerror = (err) => {
-    console.error("[WS] Error:", err);
+  ws.onerror = () => {
   };
+}
 
-  return ws;
+function _stopWs(): void {
+  if (_wsReconnectTimer) {
+    clearTimeout(_wsReconnectTimer);
+    _wsReconnectTimer = null;
+  }
+  if (_sharedWs) {
+    _sharedWs.onclose = null;
+    _sharedWs.close();
+    _sharedWs = null;
+  }
+}
+
+export function subscribeWs(cb: WsCallback): () => void {
+  _wsCallbacks.add(cb);
+  _startWs();
+  return () => {
+    _wsCallbacks.delete(cb);
+    if (_wsCallbacks.size === 0) {
+      _stopWs();
+    }
+  };
 }

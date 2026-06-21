@@ -158,9 +158,16 @@ async def startup():
     await sync_engine.start()
     logger.info("Sync engine started")
 
+    # --- Autonomous background services ---
+    from core.monitor_service import monitor_service
+    await monitor_service.start()
+    logger.info("Monitor service started")
+
 
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("TaskPilot AI shutting down...")
+    from core.monitor_service import monitor_service
+    await monitor_service.stop()
     await sync_engine.stop()
-    logger.info("Sync engine stopped")
+    logger.info("Background services stopped")

@@ -98,6 +98,9 @@ def build_prioritization_prompt(deduplicated_tasks: list[dict[str, Any]]) -> tup
         "{\n"
         '  "id": "<task id>",\n'
         '  "score": <number, 0-100, one decimal place>,\n'
+        '  "score_breakdown": {"deadline_urgency": <0-100>, "severity": <0-100>, "business_impact": <0-100>, "dependency_blocking": <0-100>},\n'
+        
+        
         '  "rationale": "<two sentences: score breakdown by component, then the single biggest driver>"\n'
         "}\n"
     )

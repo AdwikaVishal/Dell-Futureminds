@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router";
-import { LayoutDashboard, ListTodo, Plug, MessageSquare, BarChart2, Settings } from "lucide-react";
+import { LayoutDashboard, ListTodo, Plug, MessageSquare, BarChart2, Settings, Activity } from "lucide-react";
 import { LogoMark } from "./LogoMark";
 
 const SAGE = "#8FCBA8";
@@ -14,7 +14,8 @@ const NAV_ITEMS = [
   { path: "/sources", label: "Sources", icon: Plug },
   { path: "/assistant", label: "Chat Assistant", icon: MessageSquare },
   { path: "/weekly-summary", label: "Weekly Summary", icon: BarChart2 },
-  { path: "#", label: "Settings", icon: Settings },
+  { path: "/traces", label: "Traces", icon: Activity },
+  { path: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function Sidebar() {
