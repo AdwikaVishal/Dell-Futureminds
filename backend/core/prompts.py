@@ -44,25 +44,18 @@ def build_extraction_prompt(source_text: str, source_type: str, source_id: str) 
         "    \"source_sentence\": \"Diane, can you make sure this gets done before end of sprint?\"\n"
         "  }\n"
         "]\n\n"
-        "EXAMPLE 4 (multiple buried items in one email - extract each separately)\n"
-        "Source text: \"Recap of sync: mostly routine planning. One more thing - can you also "
-        "update the API docs once the rate limit change ships? And separately, can someone "
-        "double check the billing webhook before Friday?\"\n"
+        "EXAMPLE 4 (email with urgency - return ONE task using the subject as the title)\n"
+        "Source text: \"From: oncall@company.com\nSubject: URGENT: Payment service down\n\n"
+        "Production incident. Payment service is returning 500s, all checkouts are failing. "
+        "Need immediate investigation. Root cause unknown.\"\n"
         "Output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Update API docs once rate limit change ships\",\n"
+        "    \"title\": \"URGENT: Payment service down\",\n"
         "    \"owner\": null,\n"
         "    \"deadline\": null,\n"
-        "    \"confidence\": 0.82,\n"
-        "    \"source_sentence\": \"can you also update the API docs once the rate limit change ships?\"\n"
-        "  },\n"
-        "  {\n"
-        "    \"title\": \"Double check the billing webhook\",\n"
-        "    \"owner\": null,\n"
-        "    \"deadline\": \"Friday\",\n"
-        "    \"confidence\": 0.78,\n"
-        "    \"source_sentence\": \"can someone double check the billing webhook before Friday?\"\n"
+        "    \"confidence\": 0.95,\n"
+        "    \"source_sentence\": \"Payment service is returning 500s, all checkouts are failing.\"\n"
         "  }\n"
         "]"
     )
@@ -98,9 +91,6 @@ def build_prioritization_prompt(deduplicated_tasks: list[dict[str, Any]]) -> tup
         "{\n"
         '  "id": "<task id>",\n'
         '  "score": <number, 0-100, one decimal place>,\n'
-        '  "score_breakdown": {"deadline_urgency": <0-100>, "severity": <0-100>, "business_impact": <0-100>, "dependency_blocking": <0-100>},\n'
-        
-        
         '  "rationale": "<two sentences: score breakdown by component, then the single biggest driver>"\n'
         "}\n"
     )
@@ -212,5 +202,29 @@ def build_qa_prompt(
         f"USER QUESTION: \"{user_question}\"\n\n"
         "Answer the question using only the context above. Cite specific task/source IDs "
         "that support your answer.\n"
+    )
+    return system, user_prompt
+
+
+def build_dedup_confirmation_prompt(task_a: dict[str, Any], task_b: dict[str, Any]) -> tuple[str, str]:
+    system = (
+        "You are a precise deduplication assistant. You are shown two tasks pulled from "
+        "different sources (Jira, ServiceNow, email, transcript, etc). Your job is to decide "
+        "whether they describe the SAME underlying issue or work item, even if the wording, "
+        "title, or source format is completely different. "
+        "Two tasks are duplicates if they refer to the same bug, the same customer issue, or "
+        "the same piece of work -- not just because they share a topic or component. "
+        "A vague mention of a similar area (e.g. both about 'uploads') is NOT enough on its own; "
+        "look for matching specifics (same root cause, same customer, same error, explicit ID "
+        "references, same deadline/incident). "
+        'Return ONLY valid JSON: {"is_duplicate": true|false, "reasoning": "<one sentence>"}'
+    )
+    user_prompt = (
+        "TASK A:\n"
+        f"{json.dumps(task_a, indent=2)}\n\n"
+        "TASK B:\n"
+        f"{json.dumps(task_b, indent=2)}\n\n"
+        "Are Task A and Task B describing the same underlying issue? "
+        "Return ONLY the JSON object.\n"
     )
     return system, user_prompt

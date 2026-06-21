@@ -7,7 +7,6 @@ from typing import Any
 
 from core.llm_client import call_llm
 from core.prompts import build_extraction_prompt
-from core.tracer import trace
 from models.task import Task
 
 CONFIDENCE_THRESHOLD = 0.65
@@ -48,7 +47,7 @@ def _parse_extracted_items(
         source_sentence = str(item.get("source_sentence", "")).strip()
         owner = item.get("owner")
         vp_flag, cf_flag = _detect_flags(f"{title} {source_sentence}")
-        task_id = f"{source_id}-{i}"
+        task_id = source_id if (i == 0 and source_type == "email") else f"{source_id}-{i}"
         tasks.append(Task(
             id=task_id,
             title=title,
@@ -66,33 +65,35 @@ def _parse_extracted_items(
 
 
 async def _extract_single_email(email: dict[str, Any]) -> list[Task]:
-    email_id = email.get("email_id") or email.get("id", f"EML-{uuid.uuid4().hex[:6]}")
-    subject = email.get("subject") or email.get("title", "")
-    body = email.get("body")
-    if isinstance(body, dict):
-        body = body.get("content", "")
-    if not body:
-        body = email.get("body_preview") or email.get("bodyPreview") or email.get("raw_text", "")
-    sender = email.get("from_name") or email.get("from", "")
-    if isinstance(sender, dict):
-        sender = sender.get("emailAddress", {}).get("address", "") or sender.get("displayName", "")
+    email_id = email.get("id", f"EML-{uuid.uuid4().hex[:6]}")
+    subject = email.get("title", email.get("subject", ""))
+    sender = email.get("from_name", email.get("from", ""))
+    body = email.get("raw_text", email.get("body_content", ""))
     full_text = f"From: {sender}\nSubject: {subject}\n\n{body}"
-    system, user_prompt = build_extraction_prompt(
-        source_text=full_text,
+
+    # Skip LLM entirely — build the task directly from structured email fields.
+    # This avoids fragment explosion and is faster + cheaper.
+    if not subject and not body:
+        return []
+
+    text_for_flags = f"{subject} {body}"
+    vp_flag, cf_flag = _detect_flags(text_for_flags)
+
+    task = Task(
+        id=email_id,
+        title=subject or body[:80],
+        source=email_id,
         source_type="email",
-        source_id=email_id,
+        raw_text=full_text,
+        owner=None,
+        status="open",
+        confidence=0.9,
+        source_sentence=subject,
+        vp_escalation=vp_flag,
+        customer_facing=cf_flag,
     )
-    response = await call_llm(
-        prompt=user_prompt,
-        system=system,
-        json_mode=True,
-        temperature=0.1,
-    )
-    raw_items = response.parsed_json if isinstance(response.parsed_json, list) else []
-    return _parse_extracted_items(raw_items, source_id=email_id, source_type="email", raw_source_text=full_text)
+    return [task]
 
-
-@trace("extraction")
 async def extract_from_emails(email_inbox: list[dict[str, Any]]) -> list[Task]:
     results = await asyncio.gather(
         *[_extract_single_email(email) for email in email_inbox],

@@ -1,142 +1,120 @@
 from __future__ import annotations
 
-import json
 import logging
 import re
-from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from typing import Any
+from typing import Optional
 
+from core.llm_client import call_llm
+from core.prompts import build_dedup_confirmation_prompt
 from models.task import Task
 
 logger = logging.getLogger(__name__)
 
-SIMILARITY_THRESHOLD = 0.75
-JIRA_PATTERN = re.compile(r'[A-Z]+-\d+')
-EMAIL_SIGNATURE_PATTERN = re.compile(r'(?:from|subject|re:|fwd?):?\s*', re.IGNORECASE)
+# Layer 2: title string similarity. >= this -> instant merge, no LLM call needed.
+SIMILARITY_MERGE_THRESHOLD = 0.75
 
+# Layer 3: borderline band. Below the floor, titles are too different to bother
+# checking with the LLM. Within [floor, ceiling), ask the LLM to confirm.
+# Floor is intentionally low (0.15) so genuinely different-worded duplicates
+# (e.g. a Jira bug title vs. a VP escalation email about the same issue) still
+# get a real semantic check instead of relying solely on an explicit ID match.
+SIMILARITY_LLM_FLOOR = 0.15
+SIMILARITY_LLM_CEILING = SIMILARITY_MERGE_THRESHOLD
 
-def _normalize(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+# Matches ticket-style references like JIRA-1234, DEF-001, PROJ-42.
+# Deliberately requires an uppercase prefix + dash + digits so it doesn't
+# accidentally match lowercase ids like "email_008".
+ID_REFERENCE_PATTERN = re.compile(r"\b([A-Z]{2,10}-\d{1,6})\b")
 
 
 def _title_similarity(a: str, b: str) -> float:
-    return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def _extract_jira_ids(text: str) -> set[str]:
-    return set(JIRA_PATTERN.findall(text.upper()))
+def _find_id_references(task: Task) -> set[str]:
+    """Find ticket-style IDs (e.g. JIRA-1234) mentioned anywhere in a task's text."""
+    text = f"{task.title} {task.description} {task.raw_text}"
+    return {ref.upper() for ref in ID_REFERENCE_PATTERN.findall(text)}
 
 
-def _keyword_overlap(a: str, b: str) -> float:
-    words_a = set(_normalize(a).split())
-    words_b = set(_normalize(b).split())
-    if not words_a or not words_b:
-        return 0.0
-    intersection = words_a & words_b
-    union = words_a | words_b
-    return len(intersection) / len(union)
+def _task_brief(task: Task) -> dict:
+    """Minimal dict for the LLM prompt -- keep it cheap and on-topic."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description or task.raw_text[:400],
+        "source_type": task.source_type,
+    }
 
 
-def _detect_jira_email_correlation(t1: Task, t2: Task) -> tuple[float, str]:
-    jira_ids_t1 = _extract_jira_ids(t1.title + ' ' + (t1.description or '') + ' ' + (t1.raw_text or ''))
-    jira_ids_t2 = _extract_jira_ids(t2.title + ' ' + (t2.description or '') + ' ' + (t2.raw_text or ''))
-    common = jira_ids_t1 & jira_ids_t2
-    if common:
-        return 0.95, f"Cross-source correlation via JIRA ID: {', '.join(common)}"
-
-    if t1.source_type == 'jira' and t2.source_type == 'email':
-        email_text = t2.title + ' ' + (t2.description or '') + ' ' + (t2.raw_text or '')
-        jira_text = t1.title + ' ' + (t1.description or '') + ' ' + (t1.raw_text or '')
-    elif t2.source_type == 'jira' and t1.source_type == 'email':
-        email_text = t1.title + ' ' + (t1.description or '') + ' ' + (t1.raw_text or '')
-        jira_text = t2.title + ' ' + (t2.description or '') + ' ' + (t2.raw_text or '')
-    else:
-        return 0.0, ''
-
-    jira_ids = _extract_jira_ids(email_text)
-    if jira_ids:
-        return 0.90, f"Email references JIRA IDs: {', '.join(jira_ids)}"
-
-    kw_overlap = _keyword_overlap(jira_text, email_text)
-    if kw_overlap > 0.5:
-        return round(kw_overlap * 0.7, 2), f"Keyword overlap: {kw_overlap:.0%}"
-
-    return 0.0, ''
+async def _llm_confirm_duplicate(task_a: Task, task_b: Task) -> tuple[bool, str]:
+    try:
+        system, user_prompt = build_dedup_confirmation_prompt(_task_brief(task_a), _task_brief(task_b))
+        response = await call_llm(prompt=user_prompt, system=system, json_mode=True, temperature=0.0)
+        result = response.parsed_json
+        if isinstance(result, dict):
+            return bool(result.get("is_duplicate", False)), str(result.get("reasoning", ""))
+        return False, "unparseable LLM response"
+    except Exception as e:
+        logger.warning("LLM dedup confirmation failed for %s/%s: %s", task_a.id, task_b.id, e)
+        return False, f"error: {e}"
 
 
-def _detect_vp_escalation_correlation(t1: Task, t2: Task) -> tuple[float, str]:
-    if t1.vp_escalation and t2.vp_escalation:
-        kw_overlap = _keyword_overlap(t1.title + ' ' + (t1.description or ''), t2.title + ' ' + (t2.description or ''))
-        if kw_overlap > 0.3:
-            return round(0.85 * kw_overlap, 2), "Both flagged as VP escalation with topic overlap"
-    return 0.0, ''
+async def _find_match(task: Task, task_refs: set[str], deduped: list[Task]) -> tuple[Optional[Task], str]:
+    """Run the 3-layer match against everything already accepted into `deduped`."""
+
+    # Layer 1 -- explicit ID cross-reference. Cheapest and highest-confidence:
+    # if task A's text literally mentions task B's id (e.g. an email says
+    # "tracked as JIRA-1234"), that's a hard merge regardless of title wording.
+    for existing in deduped:
+        existing_refs = _find_id_references(existing)
+        if existing.id.upper() in task_refs or task.id.upper() in existing_refs:
+            return existing, "id_reference"
+
+    # Layer 2 -- title string similarity. Catches near-identical titles
+    # across sources cheaply, with no LLM call.
+    best_sim = 0.0
+    best_match: Optional[Task] = None
+    for existing in deduped:
+        sim = _title_similarity(task.title, existing.title)
+        if sim >= SIMILARITY_MERGE_THRESHOLD:
+            return existing, f"title_similarity:{sim:.2f}"
+        if sim > best_sim:
+            best_sim = sim
+            best_match = existing
+
+    # Layer 3 -- LLM semantic fallback, only for the single best borderline
+    # candidate (avoids O(n^2) LLM calls). This is what catches cases like
+    # "Upload service returning 500s" vs "VP escalation about upload bug",
+    # where the titles share little surface text but describe the same issue.
+    if best_match is not None and SIMILARITY_LLM_FLOOR <= best_sim < SIMILARITY_LLM_CEILING:
+        is_dup, reasoning = await _llm_confirm_duplicate(task, best_match)
+        if is_dup:
+            logger.info("LLM confirmed duplicate: %s ~ %s (%s)", task.id, best_match.id, reasoning)
+            return best_match, f"llm_confirmed(title_sim={best_sim:.2f})"
+
+    return None, ""
 
 
-def _compute_dedup_confidence(t1: Task, t2: Task) -> tuple[float, str]:
-    title_sim = _title_similarity(t1.title, t2.title)
-
-    jira_conf, jira_reason = _detect_jira_email_correlation(t1, t2)
-    vp_conf, vp_reason = _detect_vp_escalation_correlation(t1, t2)
-
-    kw_overlap = _keyword_overlap(t1.title + ' ' + (t1.description or ''), t2.title + ' ' + (t2.description or ''))
-
-    confidence = max(title_sim, jira_conf, vp_conf, kw_overlap)
-
-    reasons = []
-    if title_sim >= SIMILARITY_THRESHOLD:
-        reasons.append(f"Title similarity: {title_sim:.0%}")
-    if jira_conf > 0:
-        reasons.append(jira_reason)
-    if vp_conf > 0:
-        reasons.append(vp_reason)
-    if kw_overlap > SIMILARITY_THRESHOLD:
-        reasons.append(f"Keyword overlap: {kw_overlap:.0%}")
-
-    if confidence >= SIMILARITY_THRESHOLD:
-        reason = "; ".join(reasons) if reasons else f"Combined confidence: {confidence:.0%}"
-        return confidence, reason
-
-    return 0.0, ''
-
-
-def deduplicate(tasks: list[Task]) -> list[Task]:
+async def deduplicate(tasks: list[Task]) -> list[Task]:
     if not tasks:
         return []
 
     deduped: list[Task] = []
     groups: dict[str, list[Task]] = {}
-    dedup_explanations: dict[str, dict[str, Any]] = {}
+    merge_reasons: dict[str, str] = {}
 
     for task in tasks:
-        matched = False
-        best_confidence = 0.0
-        best_reason = ""
-        best_existing = None
+        task_refs = _find_id_references(task)
+        match_target, reason = await _find_match(task, task_refs, deduped)
 
-        for existing in deduped:
-            confidence, reason = _compute_dedup_confidence(task, existing)
-            if confidence >= SIMILARITY_THRESHOLD and confidence > best_confidence:
-                best_confidence = confidence
-                best_reason = reason
-                best_existing = existing
-                matched = True
-
-        if matched and best_existing:
-            key = best_existing.id
-            groups.setdefault(key, [best_existing])
+        if match_target is not None:
+            key = match_target.id
+            groups.setdefault(key, [match_target])
             groups[key].append(task)
-            dedup_explanations[task.id] = {
-                "merged_into": key,
-                "confidence": round(best_confidence, 2),
-                "reasoning": best_reason,
-            }
-            logger.info("Dedup: %s (%s) -> %s (%s) confidence=%.2f reason='%s'",
-                        task.id, task.source_type, best_existing.id, best_existing.source_type,
-                        best_confidence, best_reason)
+            merge_reasons[task.id] = reason
+            logger.info("Merged %s into %s (%s)", task.id, match_target.id, reason)
         else:
             deduped.append(task)
 
@@ -148,29 +126,11 @@ def deduplicate(tasks: list[Task]) -> list[Task]:
             merged_from = list(dict.fromkeys(t.id for t in group if t.id != task.id))
             task.merged_sources = merged_sources
             task.merged_from = merged_from
-            task.dedup_group = f"dedup_{task.id}"
-
-            group_explanations = []
-            for gt in group:
-                if gt.id != task.id:
-                    info = dedup_explanations.get(gt.id, {})
-                    if info:
-                        group_explanations.append({
-                            "task_id": gt.id,
-                            "confidence": info.get("confidence", 0),
-                            "reasoning": info.get("reasoning", ""),
-                        })
-            task.raw_text = json.dumps({
-                "dedup_group_id": task.dedup_group,
-                "merged_count": len(group),
-                "match_confidence": round(max(
-                    _compute_dedup_confidence(task, t)[0] for t in group if t.id != task.id
-                ), 2) if len(group) > 1 else 1.0,
-                "reasoning": " ; ".join(
-                    info.get("reasoning", "") for info in group_explanations
-                ),
-                "members": group_explanations,
-            })
+            task.dedup_group = task.id
         result.append(task)
 
+    logger.info(
+        "Deduplication: %d tasks -> %d unique (%d merge groups)",
+        len(tasks), len(result), len(groups),
+    )
     return result

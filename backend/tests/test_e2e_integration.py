@@ -74,7 +74,8 @@ def test_normalizer_creates_tasks():
     assert tasks[2].source_type == "email"
 
 
-def test_deduplicator_merges_duplicates():
+@pytest.mark.asyncio
+async def test_deduplicator_merges_duplicates():
     from core.deduplicator import deduplicate
 
     tasks = [
@@ -82,7 +83,7 @@ def test_deduplicator_merges_duplicates():
         Task(id="T2", title="Fix login bug on Safari", source="T2", source_type="email", raw_text="The login bug on Safari needs fixing"),
         Task(id="T3", title="Build the main dashboard", source="T3", source_type="jira"),
     ]
-    result = deduplicate(tasks)
+    result = await deduplicate(tasks)
     assert len(result) <= 2, "Similar tasks should be merged"
     merged = [t for t in result if len(t.merged_sources) > 0]
     assert len(merged) > 0, "Deduplication should produce merged tasks"

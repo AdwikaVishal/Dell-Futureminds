@@ -41,23 +41,9 @@ class JiraConnector(SourceConnector):
             self._client = None
             return False
 
-    def _load_simulated(self) -> list[dict[str, Any]]:
-        import json
-        from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "jira_samples.json"
-        if not path.exists():
-            logger.warning("Simulated Jira data not found at %s", path)
-            return []
-        try:
-            with open(path) as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error("Failed to load simulated Jira data: %s", e)
-            return []
-
     async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         if not self._client or not self.connected:
-            logger.info("Jira not connected — using simulated data")
+            logger.info("Jira not connected — using simulated board data")
             return self._load_simulated()
 
         results: list[dict[str, Any]] = []
@@ -109,6 +95,38 @@ class JiraConnector(SourceConnector):
             logger.error("Error fetching Jira issues: %s — falling back to simulated data", e)
             self.error = str(e)
             return self._load_simulated()
+
+    def _load_simulated(self) -> list[dict[str, Any]]:
+        import json
+        from pathlib import Path
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "jira_board.json"
+        if not path.exists():
+            logger.warning("Simulated Jira board data not found at %s", path)
+            return []
+        try:
+            with open(path) as f:
+                raw = json.load(f)
+            normalized = []
+            for item in raw:
+                normalized.append({
+                    "id": item["id"],
+                    "title": item["title"],
+                    "description": item.get("description", ""),
+                    "source": item.get("source", item["id"]),
+                    "source_type": "jira",
+                    "priority": item.get("priority"),
+                    "deadline": item.get("deadline"),
+                    "owner": item.get("owner", ""),
+                    "status": item.get("status", "open"),
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": item.get("raw_text", ""),
+                })
+            logger.info("Loaded %d simulated Jira issues", len(normalized))
+            return normalized
+        except Exception as e:
+            logger.error("Failed to load simulated Jira board: %s", e)
+            return []
 
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []
