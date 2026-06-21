@@ -1,5 +1,17 @@
 [
   {
+    "id": "JIRA-1234",
+    "key": "JIRA-1234",
+    "title": "Login service returning 503 — customer authentication broken",
+    "summary": "Login service returning 503 — customer authentication broken",
+    "description": "Users cannot authenticate. Auth service returning 503 errors. Possibly database connection pool exhaustion. Customer-facing P1.",
+    "priority": "P1",
+    "status": "open",
+    "assignee": null,
+    "deadline": "2026-06-21T18:00:00Z",
+    "source": "jira"
+  }
+  {
     "id": "PROJ-101",
     "title": "Fix login page validation error",
     "description": "Users reporting that the login page shows a generic error instead of field-specific validation messages. Need to update error handling in the auth component.",

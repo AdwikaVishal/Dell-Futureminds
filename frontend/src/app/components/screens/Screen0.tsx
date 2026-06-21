@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import { getPlan } from "../../api/taskpilot";
 
 // ─── Design tokens (match landing page exactly) ───────────────────────────
 const T = {
@@ -97,14 +96,6 @@ export function Screen0({ onStart }: { onStart: () => void }) {
   const particles = useRef(makeParticles()).current;
   const clock = useClock();
   const [activeSeg, setActiveSeg] = useState(0);
-  const [taskCount, setTaskCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    getPlan().then(p => {
-      const total = (p.top_priorities?.length ?? 0) + (p.do_next?.length ?? 0) + (p.deferred?.length ?? 0) + (p.blocked?.length ?? 0);
-      setTaskCount(total);
-    }).catch(() => setTaskCount(null));
-  }, []);
 
   // Typewriter sequencing
   const [startLine1, setStartLine1] = useState(false);
@@ -276,11 +267,9 @@ export function Screen0({ onStart }: { onStart: () => void }) {
             opacity: showPills ? 1 : 0,
             transform: showPills ? "translateY(0)" : "translateY(10px)",
           }}>
-            {taskCount !== null && (
-              <span style={{ fontSize:12, padding:"4px 10px", borderRadius:20, fontWeight:500, border:`0.5px solid ${T.sagePillBorder}`, background:T.sageBg, color:T.sage }}>
-                {taskCount} task{taskCount !== 1 ? "s" : ""} ready
-              </span>
-            )}
+            <span style={{ fontSize:12, padding:"4px 10px", borderRadius:20, fontWeight:500, border:`0.5px solid ${T.coralBorder}`, background:T.coralBg, color:T.coral }}>1 critical</span>
+            <span style={{ fontSize:12, padding:"4px 10px", borderRadius:20, fontWeight:500, border:`0.5px solid ${T.amberBorder}`, background:T.amberBg, color:T.amber }}>2 high</span>
+            <span style={{ fontSize:12, padding:"4px 10px", borderRadius:20, fontWeight:500, border:`0.5px solid ${T.sagePillBorder}`, background:T.sageBg, color:T.sage }}>plan ready</span>
           </div>
 
           {/* CTA */}

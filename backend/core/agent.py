@@ -89,6 +89,19 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
         new_plan = build_daily_plan_from_tasks(updated_ranked, alerts_list)
 
         store.update(updated_ranked, new_plan)
+        # Generate proactive narrative alert
+        top = ranked_tasks[0] if ranked_tasks else None
+        if top and top.merged_sources and top.vp_escalation:
+            store.narrative_alert = (
+            f"I noticed email_008 (VP escalation) and {top.id} are about the same issue "
+            f"— I merged them and placed {top.id} at #1. SLA: {top.deadline}. "
+            f"Reason: {top.rationale}"
+         )
+        elif top and top.priority in ("P0", "P1"):
+             store.narrative_alert = (
+            f"⚠ {top.id} is a {top.priority} with deadline {top.deadline}. "
+            f"Placed at #1 automatically. {top.rationale}"
+        )
         save_state(updated_ranked, new_plan)
 
         elapsed = time.monotonic() - start_time

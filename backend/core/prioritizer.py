@@ -37,6 +37,7 @@ def _apply_scores(tasks: list[Task], scored_items: list[dict[str, Any]]) -> list
         rationale = str(item.get("rationale", ""))
         breakdown = item.get("score_breakdown", {})
         score_map[task_id] = (score, rationale, breakdown)
+        
 
     result: list[RankedTask] = []
     for task in tasks:
