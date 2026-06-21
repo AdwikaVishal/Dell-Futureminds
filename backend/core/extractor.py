@@ -66,31 +66,38 @@ def _parse_extracted_items(
 
 
 async def _extract_single_email(email: dict[str, Any]) -> list[Task]:
-    email_id = email.get("email_id") or email.get("id", f"EML-{uuid.uuid4().hex[:6]}")
-    subject = email.get("subject") or email.get("title", "")
-    body = email.get("body")
-    if isinstance(body, dict):
-        body = body.get("content", "")
-    if not body:
-        body = email.get("body_preview") or email.get("bodyPreview") or email.get("raw_text", "")
-    sender = email.get("from_name") or email.get("from", "")
-    if isinstance(sender, dict):
-        sender = sender.get("emailAddress", {}).get("address", "") or sender.get("displayName", "")
-    full_text = f"From: {sender}\nSubject: {subject}\n\n{body}"
-    system, user_prompt = build_extraction_prompt(
-        source_text=full_text,
-        source_type="email",
-        source_id=email_id,
-    )
-    response = await call_llm(
-        prompt=user_prompt,
-        system=system,
-        json_mode=True,
-        temperature=0.1,
-    )
+    # ... existing code to build full_text ...
+    
+    response = await call_llm(...)
     raw_items = response.parsed_json if isinstance(response.parsed_json, list) else []
-    return _parse_extracted_items(raw_items, source_id=email_id, source_type="email", raw_source_text=full_text)
+    
+    # ADD THIS: keyword fallback when LLM returns nothing
+    if not raw_items:
+        raw_items = _keyword_extract_fallback(full_text)
+    
+    return _parse_extracted_items(raw_items, email_id, "email", full_text)
 
+
+async def _keyword_extract_fallback(text: str) -> list[dict]:
+    """Rule-based extraction when LLM unavailable."""
+    import re
+    items = []
+    patterns = [
+        r"(?:can you|please|could you|action:|follow.?up:|todo:)\s+(.{10,100}?)(?:\.|$)",
+        r"(?:need to|we need|we should|make sure)\s+(.{10,80}?)(?:\.|$)",
+    ]
+    for pat in patterns:
+        for m in re.finditer(pat, text, re.IGNORECASE | re.MULTILINE):
+            title = m.group(1).strip()
+            if len(title) > 10:
+                items.append({
+                    "title": title[:80],
+                    "owner": None,
+                    "deadline": None,
+                    "confidence": 0.72,
+                    "source_sentence": m.group(0).strip()
+                })
+    return items[:3]  # cap at 3 per email
 
 @trace("extraction")
 async def extract_from_emails(email_inbox: list[dict[str, Any]]) -> list[Task]:

@@ -21,3 +21,22 @@ class AlertAgent(BaseAgent):
             alerts = []
 
         return {"alerts": alerts}
+
+    async def reflect(self, context: dict[str, Any]) -> dict[str, Any]:
+        reflection = await super().reflect(context)
+        ranked = context.get("ranked_tasks", [])
+        alerts = check_alerts(ranked) if ranked else []
+
+        critical = [a for a in alerts if a.severity == "critical"]
+        warnings = [a for a in alerts if a.severity == "warning"]
+
+        reflection["observations"] = [
+            f"Generated {len(alerts)} alerts ({len(critical)} critical, {len(warnings)} warnings)"
+        ]
+
+        if critical:
+            reflection["decisions"] = [
+                f"Critical alerts require immediate attention: {', '.join(a.message[:50] for a in critical[:3])}"
+            ]
+
+        return reflection

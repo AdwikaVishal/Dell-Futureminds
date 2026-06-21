@@ -27,6 +27,10 @@ class Task(BaseModel):
     dedup_group: Optional[str] = None
     assignee: Optional[str] = None
     team: Optional[str] = None
+    dedup_explanation: Optional[str] = None
+    dedup_confidence: Optional[float] = None
+    blocking_impact_score: Optional[float] = None
+    time_block: Optional[str] = None
 
 
 class RankedTask(Task):
@@ -50,6 +54,10 @@ class DailyPlan(BaseModel):
     blocked: list[RankedTask] = []
     alerts: list[Alert] = []
     ranked_tasks: list[RankedTask] = []
+    time_blocked_plan: Optional[dict] = None
+    highest_leverage_tasks: Optional[list[dict]] = None
+    deferred_tasks_detected: Optional[list[dict]] = None
+    narrative_alert: str = ""  
 
 
 class ChatRequest(BaseModel):
@@ -68,3 +76,13 @@ class InjectRequest(BaseModel):
     priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
     deadline: Optional[str] = None
     owner: Optional[str] = None
+
+
+class DashboardResponse(BaseModel):
+    plan: DailyPlan
+    time_blocked_plan: Optional[dict] = None
+    highest_leverage_tasks: Optional[list[dict]] = None
+    unblocking_recommendations: Optional[list[dict]] = None
+    deferred_tasks: Optional[list[dict]] = None
+    team_velocity: Optional[dict] = None
+    completion_patterns: Optional[dict] = None

@@ -33,4 +33,15 @@ class ExtractionAgent(BaseAgent):
                 except Exception as e:
                     logger.error("Transcript extraction failed: %s", e)
 
+        self.remember("last_extraction_count", str(len(extracted_tasks)))
+
         return {"extracted_tasks": extracted_tasks}
+
+    async def reflect(self, context: dict[str, Any]) -> dict[str, Any]:
+        reflection = await super().reflect(context)
+        emails = context.get("emails", [])
+        transcript = context.get("transcript", [])
+        reflection["observations"] = [
+            f"Processing {len(emails)} emails and {len(transcript)} transcripts for task extraction"
+        ]
+        return reflection
