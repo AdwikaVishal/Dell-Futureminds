@@ -259,23 +259,27 @@ if ($mergeStatus -ne 0) {
 # 7. Confirm successful merge and build testing
 Write-Header "Step 5: Verify Build Safety"
 Write-Info "Validating project build to ensure TypeScript safety..."
-if (Test-Path "package.json") {
-    Write-Info "Running: npm run build"
+if (Test-Path "frontend/package.json") {
+    Write-Info "Running: npm run build inside frontend subdirectory"
+    Push-Location frontend
     npm run build
-    if ($LASTEXITCODE -eq 0) {
+    $buildStatus = $LASTEXITCODE
+    Pop-Location
+    if ($buildStatus -eq 0) {
         Write-Success "Build compilation completed successfully! TypeScript/Vite is fully clean."
     } else {
         Write-Warn "Build compile failed. There may be TypeScript errors or missing dependencies after the merge."
         Write-Warn "Please inspect the error output above and resolve any code issues."
     }
 } else {
-    Write-Info "No package.json found, skipping build verification step."
+    Write-Info "No frontend/package.json found, skipping build verification step."
 }
 
 # 8. Start local server or prepare testing instructions
 Write-Header "Integration Complete!"
 Write-Success "Branch '$newBranch' is now fully integrated with '$remoteName/$targetBranch'."
 Write-Host "`nTo start testing the integrated frontend locally, run:" -ForegroundColor Green
+Write-Host "  cd frontend" -ForegroundColor Cyan
 Write-Host "  npm run dev" -ForegroundColor Cyan
 Write-Host "`nOr, if the development server is already running, refresh your browser at:" -ForegroundColor Green
 Write-Host "  http://localhost:5173" -ForegroundColor Cyan

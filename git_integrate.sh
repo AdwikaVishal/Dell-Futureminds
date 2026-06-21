@@ -256,9 +256,9 @@ fi
 # 7. Verification
 write_header "Step 5: Verify Build Safety"
 write_info "Validating project build to ensure TypeScript safety..."
-if [ -f "package.json" ]; then
-    write_info "Running: npm run build"
-    npm run build
+if [ -f "frontend/package.json" ]; then
+    write_info "Running: npm run build inside frontend subdirectory"
+    (cd frontend && npm run build)
     if [ $? -eq 0 ]; then
         write_success "Build compilation completed successfully! TypeScript/Vite is fully clean."
     else
@@ -266,13 +266,13 @@ if [ -f "package.json" ]; then
         write_warn "Please inspect the error output above and resolve any code issues."
     fi
 else
-    write_info "No package.json found, skipping build verification step."
+    write_info "No frontend/package.json found, skipping build verification step."
 fi
 
 # 8. Complete
 write_header "Integration Complete!"
 write_success "Branch '$new_branch' is now fully integrated with '$remote_name/$target_branch'."
 echo -e "\nTo start testing the integrated frontend locally, run:"
-echo -e "  ${CYAN}npm run dev${NC}"
+echo -e "  ${CYAN}cd frontend && npm run dev${NC}"
 echo -e "\nOr, if the development server is already running, refresh your browser at:"
 echo -e "  ${CYAN}http://localhost:5173${NC}\n"
