@@ -117,48 +117,93 @@ class DeterministicScoringEngine:
         if len(blocked_by_this) == 1:
             return 50.0
         return 0.0
-
     @classmethod
     def generate_rationale(
         cls, task: Task, score: float, breakdown: dict[str, float]
     ) -> str:
-        components_desc = " | ".join(
-            f"{k}={v:.0f}"
-            for k, v in sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
-        )
-        biggest = max(breakdown, key=breakdown.get)
-        second_biggest = (
-            sorted(breakdown, key=breakdown.get, reverse=True)[1]
-            if len(breakdown) > 1
-            else biggest
-        )
-        return (
-            f"Score={score:.1f}: {components_desc}. "
-            f"Weights: severity={cls.WEIGHTS['severity']}, deadline={cls.WEIGHTS['deadline_urgency']}, "
-            f"business={cls.WEIGHTS['business_impact']}, deps={cls.WEIGHTS['dependency_impact']}, "
-            f"customer={cls.WEIGHTS['customer_impact']}, escalation={cls.WEIGHTS['escalation_weight']}, "
-            f"team_block={cls.WEIGHTS['team_blocking_weight']}. "
-            f"Top drivers: {biggest} ({breakdown[biggest]:.0f}) and {second_biggest} ({breakdown[second_biggest]:.0f})."
-        )
+        reasons = []
 
-    @classmethod
-    def score_tasks(cls, tasks: list[Task]) -> list[RankedTask]:
-        if not tasks:
-            return []
-
-        ranked: list[RankedTask] = []
-        for task in tasks:
-            score, breakdown = cls.compute_score(task, tasks)
-            ranked.append(
-                RankedTask(
-                    **task.model_dump(
-                        exclude={"rank", "score", "rationale", "score_breakdown"}
-                    ),
-                    score=score,
-                    score_breakdown=breakdown,
-                    rationale=cls.generate_rationale(task, score, breakdown),
-                )
+        if breakdown["severity"] >= 75:
+            reasons.append(
+                f"🔥 Critical severity ({task.priority or 'Unknown'})"
             )
+
+        if breakdown["deadline_urgency"] >= 75:
+            reasons.append(
+                "⏰ Deadline/SLA is approaching"
+            )
+
+        if breakdown["business_impact"] >= 70:
+            if task.vp_escalation:
+                reasons.append(
+                    "📢 Escalated by leadership/customer"
+                )
+            elif task.customer_facing:
+                reasons.append(
+                    "💼 High business impact affecting customers"
+                )
+            else:
+                reasons.append(
+                    "💼 High business impact"
+                )
+
+        if breakdown["dependency_impact"] >= 60:
+            reasons.append(
+                "🔗 This task blocks dependent work"
+            )
+
+        if breakdown["team_blocking_weight"] >= 50:
+            reasons.append(
+                "🚧 Multiple teammates are blocked by this task"
+            )
+
+        if breakdown["customer_impact"] >= 60:
+            reasons.append(
+                "👥 Significant customer impact"
+            )
+
+        if not reasons:
+            reasons.append(
+                "Prioritized based on overall urgency and project importance"
+            )
+
+        top_factors = sorted(
+            breakdown.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:2]
+
+        factor_text = ", ".join(
+            f"{name.replace('_', ' ').title()} ({value:.0f}/100)"
+            for name, value in top_factors
+        )
+
+        return (
+            "Why TaskPilot ranked this highly:\n\n• "
+            + "\n• ".join(reasons)
+            + f"\n\nTop scoring factors: {factor_text}"
+            + f"\nFinal Priority Score: {score:.1f}/100"
+        )
+
+    
+        @classmethod
+        def score_tasks(cls, tasks: list[Task]) -> list[RankedTask]:
+            if not tasks:
+                return []
+
+            ranked: list[RankedTask] = []
+            for task in tasks:
+                score, breakdown = cls.compute_score(task, tasks)
+                ranked.append(
+                    RankedTask(
+                        **task.model_dump(
+                            exclude={"rank", "score", "rationale", "score_breakdown"}
+                        ),
+                        score=score,
+                        score_breakdown=breakdown,
+                        rationale=cls.generate_rationale(task, score, breakdown),
+                    )
+                )
 
         ranked.sort(key=lambda t: t.score, reverse=True)
         for i, t in enumerate(ranked):
