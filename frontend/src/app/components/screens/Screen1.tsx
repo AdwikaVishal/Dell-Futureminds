@@ -227,15 +227,130 @@ export function Screen1() {
                             <AIRationale text={task.rationale} />
                           </div>
                         )}
-                        {task.score_breakdown && Object.keys(task.score_breakdown).length > 0 && (
-                          <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                            {Object.entries(task.score_breakdown).map(([k, v]) => (
-                              <span key={k} style={{ fontSize: 10, color: TEXT_MUTED, background: "rgba(143,203,168,0.06)", padding: "2px 6px", borderRadius: 4 }}>
-                                {k.replace(/_/g, " ")}: {v}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                       {task.score_breakdown && (
+  <div
+    style={{
+      marginTop: 10,
+      padding: "10px 12px",
+      background: "rgba(143,203,168,0.04)",
+      border: `1px solid rgba(143,203,168,0.08)`,
+      borderRadius: 8,
+    }}
+  >
+    <div
+      style={{
+        color: TEXT_PRIMARY,
+        fontSize: 11,
+        fontWeight: 600,
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <SparkleIcon size={11} />
+      Why this is prioritized
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+      }}
+    >
+      {task.score_breakdown.deadline_urgency >= 80 && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(239,159,39,0.12)",
+            border: "1px solid rgba(239,159,39,0.18)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          ⏰ Deadline approaching
+        </span>
+      )}
+
+      {task.priority === "P0" && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(204,51,51,0.10)",
+            border: "1px solid rgba(204,51,51,0.18)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          🚨 P0 Critical
+        </span>
+      )}
+
+      {task.priority === "P1" && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(204,51,51,0.08)",
+            border: "1px solid rgba(204,51,51,0.14)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          ⚠️ High Severity
+        </span>
+      )}
+
+      {task.customer_facing && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(143,203,168,0.10)",
+            border: "1px solid rgba(143,203,168,0.18)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          👥 Customer Impact
+        </span>
+      )}
+
+      {task.vp_escalation && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(111,96,255,0.10)",
+            border: "1px solid rgba(111,96,255,0.18)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          📢 Leadership Escalation
+        </span>
+      )}
+
+      {task.score_breakdown.dependency_blocking > 0 && (
+        <span
+          style={{
+            fontSize: 10,
+            color: TEXT_PRIMARY,
+            background: "rgba(143,203,168,0.10)",
+            border: "1px solid rgba(143,203,168,0.18)",
+            padding: "4px 8px",
+            borderRadius: 999,
+          }}
+        >
+          🔗 Blocks Other Work
+        </span>
+      )}
+    </div>
+  </div>
+)}
                       </Card>
                     ))}
                   </div>

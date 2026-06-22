@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import Optional
 
 from core.llm_client import call_llm
 from core.prompts import build_dedup_confirmation_prompt
 from models.task import Task
+
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 

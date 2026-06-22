@@ -116,23 +116,45 @@ class DeterministicScoringEngine:
         if len(blocked_by_this) == 1:
             return 50.0
         return 0.0
-
     @classmethod
     def generate_rationale(cls, task: Task, score: float, breakdown: dict[str, float]) -> str:
-        components_desc = " | ".join(
-            f"{k}={v:.0f}" for k, v in sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
-        )
-        biggest = max(breakdown, key=breakdown.get)
-        second_biggest = sorted(breakdown, key=breakdown.get, reverse=True)[1] if len(breakdown) > 1 else biggest
-        return (
-            f"Score={score:.1f}: {components_desc}. "
-            f"Weights: severity={cls.WEIGHTS['severity']}, deadline={cls.WEIGHTS['deadline_urgency']}, "
-            f"business={cls.WEIGHTS['business_impact']}, deps={cls.WEIGHTS['dependency_impact']}, "
-            f"customer={cls.WEIGHTS['customer_impact']}, escalation={cls.WEIGHTS['escalation_weight']}, "
-            f"team_block={cls.WEIGHTS['team_blocking_weight']}. "
-            f"Top drivers: {biggest} ({breakdown[biggest]:.0f}) and {second_biggest} ({breakdown[second_biggest]:.0f})."
-        )
+        labels = {
+        "severity":             "severity",
+        "deadline_urgency":     "deadline urgency",
+        "business_impact":      "business impact",
+        "dependency_impact":    "dependency impact",
+        "customer_impact":      "customer impact",
+        "escalation_weight":    "VP escalation",
+        "team_blocking_weight": "blocking teammates",
+    }
+        priority_phrases = {
+        "P0": "Critical priority", "P1": "High priority",
+        "P2": "Medium priority",   "P3": "Low priority",
+    }
+        priority_text = priority_phrases.get(task.priority or "", "Task")
 
+        top_drivers = [
+            labels[k] for k, v in
+            sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
+            if v > 0 and k in labels
+        ][:2]
+
+        parts = []
+        if task.vp_escalation:
+            parts.append("VP escalation detected")
+        if breakdown.get("deadline_urgency", 0) >= 80:
+            parts.append("SLA expiring soon")
+        elif breakdown.get("deadline_urgency", 0) >= 50:
+            parts.append("deadline approaching")
+        if task.customer_facing:
+            parts.append("customer-facing impact")
+        if not parts and top_drivers:
+            parts = top_drivers
+
+        reason = ", ".join(parts) if parts else "multi-factor score"
+        return f"{priority_text} — {reason}. Score: {score:.0f}/100."
+
+    
     @classmethod
     def score_tasks(cls, tasks: list[Task]) -> list[RankedTask]:
         if not tasks:

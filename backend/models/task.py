@@ -57,6 +57,7 @@ class DailyPlan(BaseModel):
     time_blocked_plan: Optional[dict] = None
     highest_leverage_tasks: Optional[list[dict]] = None
     deferred_tasks_detected: Optional[list[dict]] = None
+    narrative_alert: str = ""  
 
 
 class ChatRequest(BaseModel):

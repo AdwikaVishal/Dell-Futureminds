@@ -56,6 +56,27 @@ async def run_pipeline() -> DailyPlan:
     if deferred:
         plan.deferred_tasks_detected = deferred
 
+    # ── Proactive narrative alert ──────────────────────────────
+    top = ranked_tasks[0] if ranked_tasks else None
+    if top:
+        merged = getattr(top, "merged_sources", []) or []
+        if top.vp_escalation and merged:
+            plan.narrative_alert = (
+                f"I noticed email_008 (VP escalation) and {top.id} are about the "
+                f"same issue — I merged them and placed {top.id} at #1. "
+                f"SLA: {top.deadline or 'today'}. {top.rationale}"
+            )
+        elif top.priority in ("P0", "P1") and top.deadline:
+            plan.narrative_alert = (
+                f"⚠ {top.id} is a {top.priority} with deadline {top.deadline}. "
+                f"Placed at #1 automatically. {top.rationale}"
+            )
+        else:
+            plan.narrative_alert = (
+                f"Your day is ready. Top task: {top.title}. {top.rationale}"
+            )
+    # ──────────────────────────────────────────────────────────
+
     store.update(ranked_tasks, plan)
     save_state(ranked_tasks, plan)
     save_trace("pipeline_total", (time.monotonic() - start_time) * 1000)
@@ -70,14 +91,19 @@ async def run_pipeline() -> DailyPlan:
     return plan
 
 
-async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan:
+async def reprioritize_with_injection(
+    new_task_data: InjectRequest,
+) -> DailyPlan:
     start_time = time.monotonic()
     logger.info("=== Reprioritize with injection started ===")
 
     if store.current_plan is None:
-        raise RuntimeError("No existing plan to reprioritize — run refresh first")
+        raise RuntimeError(
+            "No existing plan to reprioritize — run refresh first"
+        )
 
     try:
+        # Create injected task
         new_task = Task(
             id=f"injected_{int(time.time())}",
             title=new_task_data.title,
@@ -91,66 +117,126 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
             team=_infer_team(new_task_data.owner),
             status="open",
             dependencies=[],
-            raw_text=new_task_data.title + " " + (new_task_data.description or ""),
+            raw_text=new_task_data.title + " " +
+                     (new_task_data.description or ""),
             grounded=True,
             grounding_confidence=1.0,
         )
-        logger.info("Injected task: %s (%s)", new_task.id, new_task.title)
 
-        result = await asyncio.to_thread(verify_grounding, new_task, {})
+        logger.info(
+            "Injected task: %s (%s)",
+            new_task.id,
+            new_task.title,
+        )
+
+        # Grounding check
+        result = await asyncio.to_thread(
+            verify_grounding,
+            new_task,
+            {},
+        )
+
         new_task.grounded = result.get("grounded", True)
-        new_task.grounding_confidence = result.get("confidence", 0.95)
+        new_task.grounding_confidence = result.get(
+            "confidence",
+            0.95,
+        )
 
-        updated_ranked, change_summary = await reprioritize(store.current_tasks, new_task)
+        # Reprioritize
+        updated_ranked, change_summary = await reprioritize(
+            store.current_tasks,
+            new_task,
+        )
 
         alerts_list = check_alerts(updated_ranked)
-        new_plan = build_daily_plan_from_tasks(updated_ranked, alerts_list)
 
-        time_blocked = CalendarPlanner.generate_time_blocked_plan(updated_ranked[:min(6, len(updated_ranked))])
+        new_plan = build_daily_plan_from_tasks(
+            updated_ranked,
+            alerts_list,
+        )
+
+        # Calendar plan
+        time_blocked = CalendarPlanner.generate_time_blocked_plan(
+            updated_ranked[: min(6, len(updated_ranked))]
+        )
+
         if time_blocked:
             new_plan.time_blocked_plan = time_blocked
 
-        leverage = DependencyAnalyzer.find_highest_leverage_tasks(updated_ranked)
+        # Dependency analysis
+        leverage = DependencyAnalyzer.find_highest_leverage_tasks(
+            updated_ranked
+        )
+
         if leverage:
             new_plan.highest_leverage_tasks = leverage
 
-        store.update(updated_ranked, new_plan)
-
+        # Narrative alert
         top = updated_ranked[0] if updated_ranked else None
+
         if top and top.merged_sources and top.vp_escalation:
-            store.narrative_alert = (
-                f"I noticed {', '.join(top.merged_sources)} and {top.id} are about the same issue "
-                f"— I merged them and placed {top.id} at #1. SLA: {top.deadline}. "
-                f"Dedup confidence: {top.dedup_confidence or 'N/A'}. "
+            narrative = (
+                f"I noticed {', '.join(top.merged_sources)} "
+                f"and {top.id} are about the same issue — "
+                f"I merged them and placed {top.id} at #1. "
+                f"SLA: {top.deadline}. "
                 f"Reason: {top.rationale}"
             )
+
         elif top and top.priority in ("P0", "P1"):
-            store.narrative_alert = (
-                f"\u26a0 {top.id} is a {top.priority} with deadline {top.deadline}. "
-                f"Placed at #1 automatically. {top.rationale}"
+            narrative = (
+                f"⚠ {top.id} is a {top.priority} task "
+                f"with deadline {top.deadline}. "
+                f"Placed at #1 automatically. "
+                f"{top.rationale}"
             )
 
-        if change_summary:
-            store.narrative_alert = f"{store.narrative_alert or ''} | {change_summary}"
+        elif top:
+            narrative = (
+                f"Your plan has been updated. "
+                f"Top task: {top.title}. "
+                f"{top.rationale}"
+            )
+
+        else:
+            narrative = None
+
+        new_plan.narrative_alert = narrative
+
+        # Update state
+        store.update(updated_ranked, new_plan)
 
         save_state(updated_ranked, new_plan)
-        notification_service.schedule(plan=new_plan, tasks=updated_ranked, alerts=new_plan.alerts)
 
-        narrative = getattr(store, "narrative_alert", None)
+        notification_service.schedule(
+            plan=new_plan,
+            tasks=updated_ranked,
+            alerts=new_plan.alerts,
+        )
+
         if narrative:
-            notification_service.schedule(narrative=narrative)
-            store.narrative_alert = None
+            notification_service.schedule(
+                narrative=narrative
+            )
 
         elapsed = time.monotonic() - start_time
-        logger.info("=== Reprioritize finished in %.2fs ===", elapsed)
+
+        logger.info(
+            "=== Reprioritize finished in %.2fs ===",
+            elapsed,
+        )
+
         if elapsed > 15:
-            logger.warning("Reprioritize exceeded 15s target (%.2fs)", elapsed)
+            logger.warning(
+                "Reprioritize exceeded 15s target (%.2fs)",
+                elapsed,
+            )
 
         return new_plan
+
     except Exception as e:
         logger.error("Reprioritize failed: %s", e)
         raise
-
 
 async def answer_question(question: str, tasks: list[RankedTask], context: dict) -> str:
     result = await qa_answer_question(tasks, question, context.get("chat_history"))
