@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -298,3 +299,84 @@ class CalendarPlanner:
             available.append((current, day_end))
 
         return available
+
+    @staticmethod
+    def get_events_for_month(year: int, month: int) -> list[dict[str, Any]]:
+        _ensure_db()
+        conn = _get_db()
+        month_start = datetime(year, month, 1, 0, 0, 0, tzinfo=timezone.utc)
+        if month == 12:
+            month_end = datetime(year + 1, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        else:
+            month_end = datetime(year, month + 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        rows = conn.execute(
+            "SELECT * FROM calendar_events WHERE start_time >= ? AND start_time < ? ORDER BY start_time ASC",
+            (month_start.isoformat(), month_end.isoformat()),
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def generate_week_plan(
+        ranked_tasks: list[RankedTask],
+    ) -> list[dict[str, Any]]:
+        now = datetime.now(timezone.utc)
+        week_start = now - timedelta(days=now.weekday())
+        return CalendarPlanner.generate_week_plan_for_date(ranked_tasks, week_start)
+
+    @staticmethod
+    def generate_week_plan_for_date(
+        ranked_tasks: list[RankedTask], week_start: datetime | date,
+    ) -> list[dict[str, Any]]:
+        if isinstance(week_start, date) and not isinstance(week_start, datetime):
+            week_start = datetime.combine(week_start, datetime.min.time(), tzinfo=timezone.utc)
+        week_plan = []
+        for i in range(7):
+            day = week_start + timedelta(days=i)
+            day_plan = CalendarPlanner.generate_time_blocked_plan(
+                ranked_tasks, date_str=day.isoformat()
+            )
+            week_plan.append({
+                "date": day.strftime("%Y-%m-%d"),
+                "day_name": day.strftime("%A"),
+                "plan": day_plan,
+            })
+        return week_plan
+
+    @staticmethod
+    def add_event(
+        title: str,
+        start_time: str,
+        end_time: str,
+        is_all_day: bool = False,
+        source: str = "manual",
+    ) -> dict[str, Any]:
+        _ensure_db()
+        conn = _get_db()
+        event_id = f"evt_{uuid.uuid4().hex[:12]}"
+        conn.execute(
+            "INSERT INTO calendar_events (event_id, title, start_time, end_time, is_all_day, source) VALUES (?, ?, ?, ?, ?, ?)",
+            (event_id, title, start_time, end_time, 1 if is_all_day else 0, source),
+        )
+        conn.commit()
+        conn.close()
+        return {
+            "event_id": event_id,
+            "title": title,
+            "start_time": start_time,
+            "end_time": end_time,
+            "is_all_day": is_all_day,
+            "source": source,
+        }
+
+    @staticmethod
+    def delete_event(event_id: str) -> bool:
+        _ensure_db()
+        conn = _get_db()
+        cursor = conn.execute(
+            "DELETE FROM calendar_events WHERE event_id = ?", (event_id,)
+        )
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        conn.close()
+        return deleted

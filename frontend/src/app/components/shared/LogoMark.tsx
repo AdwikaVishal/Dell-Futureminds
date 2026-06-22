@@ -2,7 +2,7 @@ export function LogoMark({ size = 28 }: { size?: number }) {
   return (
     <div style={{
       width: size, height: size,
-      borderRadius: 10, background: "#0D0D0D",
+      borderRadius: 10, background: "var(--bg-sidebar)",
       display: "flex", alignItems: "center", justifyContent: "center",
       flexShrink: 0,
     }}>

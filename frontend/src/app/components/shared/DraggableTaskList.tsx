@@ -13,16 +13,16 @@ function DraggableItem({ task, index, moveItem, onEdit }: { task: any; index: nu
   drag(drop(ref));
 
   return (
-    <div ref={ref} style={{ opacity: isDragging ? 0.5 : 1, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "#FFFFFF", border: "1px solid #E9E4D8", borderRadius: 12, cursor: "grab", transition: "opacity 0.15s" }}>
-      <GripVertical className="w-3.5 h-3.5" style={{ color: "#B0A8A0", flexShrink: 0 }} />
+    <div ref={ref} style={{ opacity: isDragging ? 0.5 : 1, display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: "var(--bg-elevated)", border: "1px solid var(--border-default)", borderRadius: 12, cursor: "grab", transition: "opacity 0.15s" }}>
+      <GripVertical className="w-3.5 h-3.5" style={{ color: "var(--text-muted)", flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: "#111111", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.title}</p>
+        <p style={{ fontSize: 12, fontWeight: 500, margin: 0, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.title}</p>
         <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
           <SourceBadge source={task.source || task.source_type} />
           <PriorityPill level={(task.priority ?? "P3") as any} size="xs" />
         </div>
       </div>
-      <span style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>#{index + 1}</span>
+      <span style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>#{index + 1}</span>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export function DraggableTaskList({ tasks, onReorder, onEdit }: { tasks: any[]; 
   };
 
   if (tasks.length === 0) {
-    return <div style={{ textAlign: "center", padding: 20, color: "#7A7A7A", fontSize: 12 }}>No tasks to reorder.</div>;
+    return <div style={{ textAlign: "center", padding: 20, color: "var(--text-secondary)", fontSize: 12 }}>No tasks to reorder.</div>;
   }
 
   return (

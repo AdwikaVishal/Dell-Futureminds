@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+import calendar
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -14,6 +15,8 @@ from models.task import (
     Task,
     CreateTaskRequest,
     UpdateTaskRequest,
+    ChatHistoryItem,
+    ReferencedTask,
 )
 from core.state import store, get_recent_traces, get_team_velocity
 from core.state import (
@@ -36,6 +39,7 @@ from core.prometheus_metrics import (
     extracted_task_count,
     active_websocket_connections,
 )
+from core.chat_orchestrator import orchestrator as chat_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +95,23 @@ async def health():
 
     db_ok = engine is not None
 
+    # Check LLM API key health
+    groq_ok = False
+    gemini_ok = False
+    groq_msg = ""
+    gemini_msg = ""
+    try:
+        from core.llm_client import GroqBackend, GeminiBackend
+        groq_ok, groq_msg = await GroqBackend.check_connectivity()
+    except Exception as e:
+        groq_msg = str(e)
+    try:
+        gemini_ok, gemini_msg = await GeminiBackend.check_connectivity()
+    except Exception as e:
+        gemini_msg = str(e)
+
+    llm_ok = groq_ok or gemini_ok
+
     return {
         "status": "ok",
         "version": "1.0.0",
@@ -107,6 +128,11 @@ async def health():
         if hasattr(store, "_startup_time")
         else 0,
         "connectors": connector_status,
+        "llm_ok": llm_ok,
+        "groq_ok": groq_ok,
+        "groq_status": groq_msg,
+        "gemini_ok": gemini_ok,
+        "gemini_status": gemini_msg,
     }
 
 
@@ -210,7 +236,7 @@ async def update_task(task_id: str, req: UpdateTaskRequest):
                 t.assignee = req.assignee
             if req.team is not None:
                 t.team = req.team
-            await save_state(store)
+            await save_state(store.current_tasks, store.current_plan)
             await ws_manager.broadcast(
                 "broadcast",
                 "tasks_updated",
@@ -240,7 +266,7 @@ async def create_task(req: CreateTaskRequest):
         team=req.team,
     )
     store.current_tasks.append(task)
-    await save_state(store)
+    await save_state(store.current_tasks, store.current_plan)
     await ws_manager.broadcast(
         "broadcast",
         "tasks_updated",
@@ -257,7 +283,7 @@ async def delete_task(task_id: str):
     for i, t in enumerate(store.current_tasks):
         if t.id == task_id:
             removed = store.current_tasks.pop(i)
-            await save_state(store)
+            await save_state(store.current_tasks, store.current_plan)
             await ws_manager.broadcast(
                 "broadcast",
                 "tasks_updated",
@@ -280,7 +306,7 @@ async def reorder_tasks(data: dict):
     if len(reordered) != len(task_ids):
         raise HTTPException(status_code=400, detail="Some task IDs not found")
     store.current_tasks = reordered
-    await save_state(store)
+    await save_state(store.current_tasks, store.current_plan)
     await ws_manager.broadcast(
         "broadcast",
         "tasks_updated",
@@ -392,16 +418,136 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
     try:
-        if store.current_plan is None:
+        if store.current_plan is None or not store.current_tasks:
             await run_pipeline()
-        tasks = store.current_tasks
-        response = await answer_question(tasks, req.message, store.chat_history[-5:])
-        store.add_chat_entry(req.message, response.answer, response.referenced_task_ids)
-        await save_chat_log(req.message, response.answer, response.referenced_task_ids)
-        return response
+
+        # Try the new orchestrator first, fall back to QA
+        result = None
+        try:
+            result = await chat_orchestrator.process_query(
+                query=req.message,
+                user_id="default",
+                session_id=req.session_id,
+            )
+            if result.get("status") == "error":
+                raise RuntimeError(result.get("error", "Orchestrator returned error status"))
+            response_text = result.get("response", "")
+            referenced = result.get("referenced_tasks", [])
+            referenced_ids = [r["id"] for r in referenced]
+            context_used = result.get("context_used", {})
+        except Exception as oe:
+            logger.warning("Orchestrator failed, falling back to QA: %s", oe)
+            response = await answer_question(
+                store.current_tasks, req.message, store.chat_history[-5:]
+            )
+            response_text = response.answer
+            referenced_ids = response.referenced_task_ids
+            referenced = [
+                {"id": tid, "title": "", "source": ""}
+                for tid in referenced_ids
+            ]
+            context_used = {}
+            result = None
+
+        store.add_chat_entry(req.message, response_text, referenced_ids)
+        await save_chat_log(req.message, response_text, referenced_ids)
+
+        # Generate follow-up suggestions
+        suggestions = _generate_chat_suggestions(result or {}) if result else [
+            "What's my top priority?",
+            "Summarize my tasks",
+            "What's blocking me?",
+            "Show my plan for today",
+        ]
+
+        return {
+            "answer": response_text,
+            "referenced_task_ids": referenced_ids,
+            "referenced_tasks": [
+                ReferencedTask(**r) for r in referenced
+            ],
+            "suggestions": suggestions,
+            "context_used": context_used,
+            "status": "success",
+        }
     except Exception as e:
         logger.exception("Chat failed")
         raise HTTPException(status_code=500, detail=f"Chat failed: {e}")
+
+
+@router.get("/api/chat/history")
+async def get_chat_history(limit: int = 50):
+    history = store.chat_history[-limit:] if store.chat_history else []
+    items = []
+    for i, entry in enumerate(history):
+        items.append(
+            ChatHistoryItem(
+                id=f"chat-{i}",
+                role="user",
+                content=entry.get("question", ""),
+                timestamp=entry.get("timestamp", ""),
+            )
+        )
+        items.append(
+            ChatHistoryItem(
+                id=f"chat-{i}-resp",
+                role="assistant",
+                content=entry.get("answer", ""),
+                timestamp=entry.get("timestamp", ""),
+                referenced_tasks=[
+                    ReferencedTask(id=tid, title="", source="")
+                    for tid in entry.get("referenced_task_ids", [])
+                ],
+            )
+        )
+    return {"history": items, "count": len(items)}
+
+
+@router.post("/api/chat/clear")
+async def clear_chat_history():
+    store.chat_history = []
+    return {"status": "success", "message": "Chat history cleared"}
+
+
+@router.get("/api/chat/suggestions")
+async def get_chat_suggestions():
+    suggestions = _generate_context_suggestions()
+    return {"suggestions": suggestions}
+
+
+def _generate_chat_suggestions(response: dict) -> list[str]:
+    suggestions = [
+        "What's my top priority?",
+        "Summarize my tasks",
+        "What's blocking me?",
+        "Show my plan for today",
+    ]
+    referenced = response.get("referenced_tasks", []) if response else []
+    if referenced:
+        task = referenced[0]
+        suggestions.append(f"Why is {task.get('id', '')} important?")
+        suggestions.append(f"What depends on {task.get('id', '')}?")
+    return suggestions[:6]
+
+
+def _generate_context_suggestions() -> list[str]:
+    plan = store.current_plan
+    tasks = store.current_tasks
+    suggestions = []
+
+    if tasks:
+        suggestions.append("What's my top priority?")
+
+    blocked = [t for t in tasks if t.status == "blocked"]
+    if blocked:
+        suggestions.append(f"How do I unblock {blocked[0].title}?")
+
+    suggestions.append("Summarize my tasks")
+    suggestions.append("What's my plan for today?")
+    suggestions.append("Generate my weekly summary")
+
+    return suggestions[:6]
+
 
 
 @router.post("/api/inject")
@@ -525,7 +671,7 @@ async def convert_hidden_task(req: ConvertHiddenRequest):
             task.priority = req.priority
         if req.deadline:
             task.deadline = req.deadline
-        await save_state(store)
+        await save_state(store.current_tasks, store.current_plan)
         await ws_manager.broadcast(
             "broadcast",
             "tasks_updated",
@@ -664,6 +810,15 @@ async def get_dependency_analysis():
     }
 
 
+@router.get("/api/dependency/insights")
+async def get_dependency_insights():
+    tasks = store.current_tasks
+    if not tasks:
+        from core.dependency_analyzer import empty_insights
+        return empty_insights()
+    return DependencyAnalyzer.get_dependency_insights(tasks)
+
+
 # ─── A2A Protocol ────────────────────────────────────────────────────────────────
 
 A2A_AGENTS: dict[str, dict] = {}
@@ -739,3 +894,156 @@ async def a2a_message(data: dict):
             "agent": "taskpilot-ai",
         }
     return {"status": "error", "message": f"Unknown message type: {message_type}"}
+
+
+# ─── Calendar Endpoints ──────────────────────────────────────────────────────────
+
+
+@router.get("/api/calendar/month/{year}/{month}")
+async def get_calendar_month(year: int, month: int):
+    try:
+        if not 1 <= month <= 12:
+            raise HTTPException(status_code=422, detail="month must be between 1 and 12")
+        events = CalendarPlanner.get_events_for_month(year, month)
+        tasks = store.current_tasks
+        tasks_by_date: dict[str, list[dict]] = {}
+        events_by_date: dict[str, list[dict]] = {}
+        for t in tasks:
+            if t.deadline:
+                day_key = t.deadline[:10]
+                tasks_by_date.setdefault(day_key, []).append({
+                    "id": t.id,
+                    "title": t.title,
+                    "priority": t.priority,
+                    "status": t.status,
+                })
+        for event in events:
+            events_by_date.setdefault(event["start_time"][:10], []).append(event)
+
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        grid_start = first_day - timedelta(days=first_day.weekday())
+        grid_end = last_day + timedelta(days=6 - last_day.weekday())
+        today = datetime.now(timezone.utc).date()
+        days = []
+        current = grid_start
+        while current <= grid_end:
+            key = current.isoformat()
+            day_tasks = tasks_by_date.get(key, [])
+            days.append({
+                "date": key,
+                "day": current.day,
+                "is_today": current == today,
+                "is_current_month": current.month == month,
+                "tasks": day_tasks[:3],
+                "events": events_by_date.get(key, []),
+                "task_count": len(day_tasks),
+            })
+            current += timedelta(days=1)
+        return {
+            "year": year,
+            "month": month,
+            "month_name": calendar.month_name[month],
+            "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+            "days": days,
+        }
+    except Exception as e:
+        logger.exception("Failed to get month calendar")
+        raise HTTPException(status_code=500, detail=f"Failed to get month calendar: {e}")
+
+
+@router.get("/api/calendar/week")
+async def get_calendar_week(date: Optional[str] = Query(None)):
+    try:
+        try:
+            target = datetime.fromisoformat(date).date() if date else datetime.now(timezone.utc).date()
+        except ValueError:
+            raise HTTPException(status_code=422, detail="date must be ISO-8601 (YYYY-MM-DD)")
+        start = target - timedelta(days=target.weekday())
+        ranked = store.current_plan.ranked_tasks if store.current_plan else []
+        generated = CalendarPlanner.generate_week_plan_for_date(ranked, start)
+        days: dict[str, list[dict]] = {item["date"]: item["plan"] for item in generated}
+        tasks_by_day: dict[str, list[dict]] = {key: [] for key in days}
+        for task in store.current_tasks:
+            if task.deadline and task.deadline[:10] in tasks_by_day:
+                tasks_by_day[task.deadline[:10]].append(task.model_dump(mode="json"))
+        return {
+            "week_start": start.isoformat(),
+            "week_end": (start + timedelta(days=6)).isoformat(),
+            "days": days,
+            "tasks_by_day": tasks_by_day,
+        }
+    except Exception as e:
+        logger.exception("Failed to get week plan")
+        raise HTTPException(status_code=500, detail=f"Failed to get week plan: {e}")
+
+
+@router.post("/api/calendar/task/{task_id}/move")
+async def move_calendar_task(task_id: str, data: dict):
+    try:
+        task = next((t for t in store.current_tasks if t.id == task_id), None)
+        if not task:
+            raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+        new_date = data.get("target_date") or data.get("date")
+        new_time = data.get("target_time") or data.get("time")
+        if not new_date:
+            raise HTTPException(status_code=400, detail="date is required")
+
+        if new_time:
+            task.deadline = f"{new_date}T{new_time}"
+        else:
+            task.deadline = new_date
+
+        await save_state(store.current_tasks, store.current_plan)
+        await ws_manager.broadcast(
+            "broadcast",
+            "tasks_updated",
+            [t.model_dump(mode="json") for t in store.current_tasks],
+        )
+        return {"status": "ok", "task_id": task_id, "new_deadline": task.deadline}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to move task")
+        raise HTTPException(status_code=500, detail=f"Failed to move task: {e}")
+
+
+@router.delete("/api/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str):
+    try:
+        deleted = CalendarPlanner.delete_event(event_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+        await ws_manager.broadcast("broadcast", "events_updated", {"deleted": event_id})
+        return {"status": "ok", "event_id": event_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to delete event")
+        raise HTTPException(status_code=500, detail=f"Failed to delete event: {e}")
+
+
+@router.post("/api/calendar/events")
+async def add_calendar_event(data: dict):
+    try:
+        title = data.get("title")
+        start_time = data.get("start_time")
+        end_time = data.get("end_time")
+        if not title or not start_time or not end_time:
+            raise HTTPException(
+                status_code=400, detail="title, start_time, and end_time are required"
+            )
+
+        is_all_day = data.get("is_all_day", False)
+        source = data.get("source", "manual")
+
+        event = CalendarPlanner.add_event(
+            title, start_time, end_time, is_all_day, source
+        )
+        return {"status": "ok", "event": event}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to add event")
+        raise HTTPException(status_code=500, detail=f"Failed to add event: {e}")

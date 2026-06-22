@@ -167,17 +167,18 @@ async def reprioritize(
     current_ranked_tasks: list[RankedTask],
     new_task: Task,
 ) -> tuple[list[RankedTask], str]:
-    INJECTION_BOOST = 1.30
+    INJECTION_BOOST = 1.50
 
     all_tasks = list(current_ranked_tasks) + [new_task]
     all_ranked = DeterministicScoringEngine.score_tasks(all_tasks)
 
     for rt in all_ranked:
         if rt.id == new_task.id:
-            boosted = round(rt.score * INJECTION_BOOST, 1)
+            base_score = rt.score
+            boosted = round(base_score * INJECTION_BOOST, 1)
             rt.score = boosted
             rt.rationale = (
-                f"Injected task: base score {rt.score:.1f} × {INJECTION_BOOST} boost = {boosted:.1f}. "
+                f"Injected task: base score {base_score:.1f} × {INJECTION_BOOST} boost = {boosted:.1f}. "
                 f"Manual injection indicates urgency. "
                 f"{rt.rationale}"
             )

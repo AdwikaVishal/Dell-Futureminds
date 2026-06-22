@@ -46,12 +46,12 @@ export function Integrations() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <h2 style={{ margin: 0 }}>Integrations</h2>
-          <p style={{ color: "#7A7A7A", fontSize: 13, marginTop: 4 }}>
+          <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
             {loading ? "Loading..." : `${uniqueConnectors.size} sources`}
           </p>
         </div>
         <button onClick={() => handleSync()} disabled={!!syncing}
-          style={{ background: "#0D0D0D", color: "#FFFFFF", border: "none", padding: "10px 20px", borderRadius: 12, fontSize: 12, cursor: syncing ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", opacity: syncing ? 0.7 : 1 }}>
+          style={{ background: "var(--bg-sidebar)", color: "#FFFFFF", border: "none", padding: "10px 20px", borderRadius: 12, fontSize: 12, cursor: syncing ? "wait" : "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", opacity: syncing ? 0.7 : 1 }}>
           <RefreshCw size={13} className={syncing ? "" : ""} /> {syncing === "all" ? "Syncing..." : "Sync All"}
         </button>
       </div>
@@ -69,9 +69,9 @@ export function Integrations() {
               { label: "Redis", ok: health.redis_connected },
               { label: "Database", ok: health.database_connected },
             ].map((item, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: "#F6F2E9", padding: "8px 12px", borderRadius: 10 }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg-primary)", padding: "8px 12px", borderRadius: 10 }}>
                 {item.ok ? <CheckCircle size={13} color="#BFD78D" /> : <XCircle size={13} color="#F7C5E6" />}
-                <span style={{ fontSize: 12, color: "#111111" }}>{item.label}</span>
+                <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{item.label}</span>
               </div>
             ))}
           </div>
@@ -82,7 +82,7 @@ export function Integrations() {
         {Array.from(uniqueConnectors.values()).length === 0 && !loading && (
           <Card style={{ textAlign: "center", padding: 40 }}>
             <Link2 size={24} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
-            <p style={{ color: "#7A7A7A", fontSize: 13, margin: 0 }}>No integrations configured yet.</p>
+            <p style={{ color: "var(--text-secondary)", fontSize: 13, margin: 0 }}>No integrations configured yet.</p>
           </Card>
         )}
         {Array.from(uniqueConnectors.values()).map((c: ConnectorStatus) => (
@@ -90,7 +90,7 @@ export function Integrations() {
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ fontSize: 24, lineHeight: 1 }}>{INTEGRATION_LOGOS[c.name.toLowerCase()] || "🔌"}</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#111111" }}>{c.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{c.name}</div>
                 <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
                   {c.connected ? (
                     <span style={{ fontSize: 11, color: "#BFD78D", fontFamily: "'IBM Plex Mono', monospace" }}>Connected</span>
@@ -98,7 +98,7 @@ export function Integrations() {
                     <span style={{ fontSize: 11, color: "#F7C5E6", fontFamily: "'IBM Plex Mono', monospace" }}>Disconnected</span>
                   )}
                   {c.last_sync && (
-                    <span style={{ fontSize: 11, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>
                       Last sync: {new Date(c.last_sync).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
@@ -111,7 +111,7 @@ export function Integrations() {
               </div>
               <button onClick={() => handleSync(c.name)}
                 disabled={!!syncing}
-                style={{ background: "none", border: "1px solid #E9E4D8", padding: "8px 16px", borderRadius: 10, fontSize: 12, cursor: syncing ? "wait" : "pointer", color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>
+                style={{ background: "none", border: "1px solid var(--border-default)", padding: "8px 16px", borderRadius: 10, fontSize: 12, cursor: syncing ? "wait" : "pointer", color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>
                 {syncing === c.name ? "..." : "Sync"}
               </button>
             </div>

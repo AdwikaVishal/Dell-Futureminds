@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { BarChart3, TrendingUp, Activity, Users, RefreshCw, Clock, Zap, Copy, Check, Cpu, Database, GitBranch } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { BarChart3, TrendingUp, Activity, Users, RefreshCw, Clock, Zap, Copy, Check, Cpu, Database, GitBranch, Eye, EyeOff } from "lucide-react";
 import { Card } from "../shared/Card";
 import { getDashboard, getWeeklySummary, getTeamMetrics, getMetrics, WebSocketEvent } from "../../api/taskpilot";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { BarChart, Bar, PieChart, Pie, Cell, ComposedChart, AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
-const TOOLTIP_STYLE = { contentStyle: { background: "#FFFDF8", border: "1px solid #E9E4D8", borderRadius: 12, fontSize: 12 } };
+const TOOLTIP_STYLE = { contentStyle: { background: "var(--bg-secondary)", border: "1px solid var(--border-default)", borderRadius: 12, fontSize: 12 } };
 
 const BOLD_COLORS = ["#E86AA8", "#D4A020", "#6BBF6E", "#4A8FE4", "#9B6FD8", "#E88040"];
 const CHART_GREEN = "#5AB05E";
@@ -20,11 +20,11 @@ function KpiCard({ icon, label, value, sub, variant = "default" }: { icon: React
   return (
     <Card variant={variant as any} shadow>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: "#7A7A7A", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'IBM Plex Mono', monospace" }}>{label}</span>
+        <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'IBM Plex Mono', monospace" }}>{label}</span>
         {icon}
       </div>
       <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 11, color: "#7A7A7A", marginTop: 2 }}>{sub}</div>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{sub}</div>
     </Card>
   );
 }
@@ -32,8 +32,38 @@ function KpiCard({ icon, label, value, sub, variant = "default" }: { icon: React
 function StatRow({ label, value, highlight }: { label: string; value: string | number; highlight?: boolean }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: "1px solid #F0EBE0" }}>
-      <span style={{ fontSize: 12, color: "#7A7A7A" }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: highlight ? 700 : 500, color: highlight ? "#111111" : "#111111", fontFamily: "'IBM Plex Mono', monospace" }}>{value}</span>
+      <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: highlight ? 700 : 500, color: highlight ? "var(--text-primary)" : "var(--text-primary)", fontFamily: "'IBM Plex Mono', monospace" }}>{value}</span>
+    </div>
+  );
+}
+
+function SkeletonBar({ width = "100%", height = 12 }: { width?: string; height?: number }) {
+  return (
+    <div style={{
+      width, height, borderRadius: 6,
+      background: "linear-gradient(90deg, var(--border-subtle) 25%, var(--border-default) 50%, var(--border-subtle) 75%)",
+      backgroundSize: "200% 100%",
+      animation: "shimmer 1.5s infinite",
+    }} />
+  );
+}
+
+function ChartSkeleton({ height = 260 }: { height?: number }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 0" }}>
+      <SkeletonBar width="40%" height={14} />
+      <div style={{ height, display: "flex", alignItems: "flex-end", gap: 8, padding: "0 20px" }}>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} style={{
+            flex: 1, height: `${20 + Math.random() * 60}%`,
+            background: "var(--border-subtle)", borderRadius: "6px 6px 0 0",
+            animation: "shimmer 1.5s infinite",
+            backgroundImage: "linear-gradient(90deg, var(--border-subtle) 25%, var(--border-default) 50%, var(--border-subtle) 75%)",
+            backgroundSize: "200% 100%",
+          }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -44,20 +74,42 @@ export function Reports() {
   const [team, setTeam] = useState<any>(null);
   const [metrics, setMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(["kpi"]));
+  const chartRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadedSections(new Set(["kpi"]));
     try {
-      const [d, w, t, m] = await Promise.all([
+      // Fire all requests in parallel
+      const promises = [
         getDashboard().catch(() => null),
         getWeeklySummary().catch(() => null),
         getTeamMetrics().catch(() => null),
         getMetrics().catch(() => null),
-      ]);
-      setDb(d);
-      setWeekly(w?.summary || "");
-      setTeam(t);
-      setMetrics(m);
+      ];
+
+      // Progressive loading: update state as each resolves
+      const results = await Promise.allSettled(promises);
+
+      const d = results[0].status === "fulfilled" ? results[0].value : null;
+      const w = results[1].status === "fulfilled" ? results[1].value : null;
+      const t = results[2].status === "fulfilled" ? results[2].value : null;
+      const m = results[3].status === "fulfilled" ? results[3].value : null;
+
+      if (d) setDb(d as any);
+      const weeklyData = w as { summary?: string } | null;
+      if (weeklyData?.summary) setWeekly(weeklyData.summary);
+      if (t) setTeam(t as any);
+      if (m) setMetrics(m as any);
+
+      // Mark sections as loaded progressively
+      const sections = ["kpi", "summary", "charts", "source", "llm", "team"];
+      sections.forEach((s, i) => {
+        setTimeout(() => {
+          setLoadedSections(prev => new Set([...prev, s]));
+        }, i * 150);
+      });
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -168,23 +220,37 @@ export function Reports() {
           <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
             <BarChart3 size={20} /> Reports
           </h2>
-          <p style={{ color: "#7A7A7A", fontSize: 13, marginTop: 4 }}>
+          <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
             {loading ? "Loading..." : `${metrics?.task_count ?? 0} tasks · ${Object.keys(teams).length} teams · ${velocity.length}d velocity`}
           </p>
         </div>
-        <button onClick={fetchData} style={{ background: "#0D0D0D", color: "#FFFFFF", border: "none", padding: "10px 20px", borderRadius: 12, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+        <button onClick={fetchData} style={{ background: "var(--bg-sidebar)", color: "#FFFFFF", border: "none", padding: "10px 20px", borderRadius: 12, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
           <RefreshCw size={13} /> Refresh
         </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-        <KpiCard icon={<Database size={16} color="#7A7A7A" />} label="Total Tasks" value={String(totalTasks)} sub="Across all sources" variant="green" />
-        <KpiCard icon={<Cpu size={16} color="#7A7A7A" />} label="Avg Latency" value={metrics?.api_latency?.avg_latency_ms ? `${metrics.api_latency.avg_latency_ms.toFixed(0)}ms` : "--"} sub="Last hour API calls" variant="blue" />
-        <KpiCard icon={<Activity size={16} color="#7A7A7A" />} label="API Calls" value={String(metrics?.api_latency?.total_calls ?? 0)} sub="In the last hour" variant="pink" />
-        <KpiCard icon={<Users size={16} color="#7A7A7A" />} label="Teams" value={String(Object.keys(teams).length || "--")} sub={`${teamChartData.reduce((s, t) => s + t.total, 0)} total tasks`} variant="yellow" />
+        {loadedSections.has("kpi") ? (
+          <>
+            <KpiCard icon={<Database size={16} color="var(--text-secondary)" />} label="Total Tasks" value={String(totalTasks)} sub="Across all sources" variant="green" />
+            <KpiCard icon={<Cpu size={16} color="var(--text-secondary)" />} label="Avg Latency" value={metrics?.api_latency?.avg_latency_ms ? `${metrics.api_latency.avg_latency_ms.toFixed(0)}ms` : "--"} sub="Last hour API calls" variant="blue" />
+            <KpiCard icon={<Activity size={16} color="var(--text-secondary)" />} label="API Calls" value={String(metrics?.api_latency?.total_calls ?? 0)} sub="In the last hour" variant="pink" />
+            <KpiCard icon={<Users size={16} color="var(--text-secondary)" />} label="Teams" value={String(Object.keys(teams).length || "--")} sub={`${teamChartData.reduce((s, t) => s + t.total, 0)} total tasks`} variant="yellow" />
+          </>
+        ) : (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} shadow style={{ minHeight: 100 }}>
+              <SkeletonBar width="60%" height={10} />
+              <div style={{ marginTop: 16 }}><SkeletonBar width="40%" height={24} /></div>
+              <div style={{ marginTop: 8 }}><SkeletonBar width="80%" height={10} /></div>
+            </Card>
+          ))
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {loadedSections.has("summary") ? (
+          <>
         <Card variant="purple" shadow style={{ maxHeight: 280, overflow: "auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
             <Zap size={14} /> <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>Weekly Summary</span>
@@ -199,7 +265,7 @@ export function Reports() {
               ))}
             </div>
           ) : (
-            <p style={{ fontSize: 12, color: "#7A7A7A", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
               {weekly.slice(0, 600) || "No weekly summary available."}
             </p>
           )}
@@ -216,8 +282,8 @@ export function Reports() {
               {copied ? "Copied!" : "Copy"}
             </button>
           </div>
-          <div style={{ background: "#F6F2E9", borderRadius: 12, padding: "12px 14px", maxHeight: 200, overflow: "auto" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif", color: "#111111", marginBottom: 8 }}>
+          <div style={{ background: "var(--bg-primary)", borderRadius: 12, padding: "12px 14px", maxHeight: 200, overflow: "auto" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif", color: "var(--text-primary)", marginBottom: 8 }}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -226,16 +292,30 @@ export function Reports() {
               ))}
             </div>
             {topPriority && (
-              <div style={{ marginTop: 8, padding: "6px 10px", background: "#FFFDF8", borderRadius: 8, border: "1px solid #E9E4D8" }}>
-                <div style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 2 }}>TOP PRIORITY</div>
-                <div style={{ fontSize: 12, fontWeight: 500, color: "#111111" }}>{topPriority.title}</div>
+              <div style={{ marginTop: 8, padding: "6px 10px", background: "var(--bg-secondary)", borderRadius: 8, border: "1px solid var(--border-default)" }}>
+                <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 2 }}>TOP PRIORITY</div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)" }}>{topPriority.title}</div>
               </div>
             )}
-            <div style={{ fontSize: 9, color: "#B0A8A0", marginTop: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+            <div style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
               Generated at {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
         </Card>
+        </>
+        ) : (
+          Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i} shadow style={{ minHeight: 220 }}>
+              <SkeletonBar width="50%" height={14} />
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                <SkeletonBar width="90%" height={12} />
+                <SkeletonBar width="75%" height={12} />
+                <SkeletonBar width="85%" height={12} />
+                <SkeletonBar width="60%" height={12} />
+              </div>
+            </Card>
+          ))
+        )}
       </div>
 
       {chartData.length > 0 && (
@@ -248,9 +328,9 @@ export function Reports() {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                  <XAxis dataKey="date" stroke="#7A7A7A" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="left" stroke="#7A7A7A" tick={{ fontSize: 11 }} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#7A7A7A" tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
+                  <XAxis dataKey="date" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="left" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="right" orientation="right" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Legend />
                   <Bar yAxisId="left" dataKey="completed" fill={CHART_GREEN} radius={[6, 6, 0, 0]} name="Completed" barSize={22} />
@@ -268,8 +348,8 @@ export function Reports() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                  <XAxis dataKey="date" stroke="#7A7A7A" tick={{ fontSize: 11 }} />
-                  <YAxis stroke="#7A7A7A" tick={{ fontSize: 11 }} />
+                  <XAxis dataKey="date" stroke="var(--text-secondary)" tick={{ fontSize: 11 }} />
+                  <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 11 }} />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Legend />
                   <Area type="monotone" dataKey="completed" stroke={CHART_GREEN} fill={CHART_GREEN} fillOpacity={0.3} strokeWidth={2.5} name="Completed" />
@@ -309,8 +389,8 @@ export function Reports() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={ingestionChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                    <XAxis dataKey="date" stroke="#7A7A7A" tick={{ fontSize: 10 }} />
-                    <YAxis stroke="#7A7A7A" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="date" stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
+                    <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
                     <Tooltip {...TOOLTIP_STYLE} />
                     <Bar dataKey="count" fill={CHART_BLUE} radius={[6, 6, 0, 0]} name="Tasks" barSize={32} />
                   </BarChart>
@@ -330,8 +410,8 @@ export function Reports() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={llmChartData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                <XAxis type="number" stroke="#7A7A7A" tick={{ fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" stroke="#7A7A7A" tick={{ fontSize: 9 }} width={80} />
+                <XAxis type="number" stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" stroke="var(--text-secondary)" tick={{ fontSize: 9 }} width={80} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="tokens" fill={CHART_PURPLE} radius={[0, 6, 6, 0]} name="Tokens" barSize={18} />
               </BarChart>
@@ -349,14 +429,14 @@ export function Reports() {
             {peakPatterns.slice(0, 8).map((p: any, i: number) => {
               const maxCount = Math.max(...peakPatterns.map((x: any) => x.count));
               const intensity = maxCount > 0 ? p.count / maxCount : 0;
-              const bg = intensity > 0.7 ? "#E86AA8" : intensity > 0.4 ? "#F5A623" : "#F6F2E9";
-              const textColor = intensity > 0.4 ? "#FFFFFF" : "#7A7A7A";
+              const bg = intensity > 0.7 ? "#E86AA8" : intensity > 0.4 ? "#F5A623" : "var(--bg-primary)";
+              const textColor = intensity > 0.4 ? "#FFFFFF" : "var(--text-secondary)";
               return (
                 <div key={i} style={{ background: bg, padding: "10px 8px", borderRadius: 10, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: textColor, fontFamily: "'IBM Plex Mono', monospace" }}>
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][p.day]}
                   </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: intensity > 0.4 ? "#FFFFFF" : "#111111" }}>{p.hour}:00</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: intensity > 0.4 ? "#FFFFFF" : "var(--text-primary)" }}>{p.hour}:00</div>
                   <div style={{ fontSize: 10, color: textColor, marginTop: 2 }}>{p.count} done</div>
                 </div>
               );
@@ -374,8 +454,8 @@ export function Reports() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={syncChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                <XAxis dataKey="name" stroke="#7A7A7A" tick={{ fontSize: 10 }} />
-                <YAxis stroke="#7A7A7A" tick={{ fontSize: 10 }} />
+                <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
+                <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
                 <Tooltip {...TOOLTIP_STYLE} />
                 <Bar dataKey="ms" fill={CHART_ORANGE} radius={[6, 6, 0, 0]} name="Duration (ms)" />
               </BarChart>
@@ -394,8 +474,8 @@ export function Reports() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={teamChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E0D8CC" />
-                  <XAxis dataKey="name" stroke="#7A7A7A" tick={{ fontSize: 10 }} />
-                  <YAxis stroke="#7A7A7A" tick={{ fontSize: 10 }} />
+                  <XAxis dataKey="name" stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
+                  <YAxis stroke="var(--text-secondary)" tick={{ fontSize: 10 }} />
                   <Tooltip {...TOOLTIP_STYLE} />
                   <Bar dataKey="total" fill={CHART_BLUE} radius={[6, 6, 0, 0]} name="Total" />
                   <Bar dataKey="done" fill={CHART_GREEN} radius={[6, 6, 0, 0]} name="Done" />
@@ -404,7 +484,7 @@ export function Reports() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: "#7A7A7A" }}>No team data available.</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>No team data available.</div>
           )}
         </Card>
         <Card variant="pink" shadow>
@@ -412,25 +492,32 @@ export function Reports() {
             <Cpu size={14} /> <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>System Health</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={{ background: "#F6F2E9", borderRadius: 12, padding: "12px" }}>
-              <div style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>PLAN STATUS</div>
-              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: metrics?.has_plan ? CHART_GREEN : "#7A7A7A" }}>{metrics?.has_plan ? "Active" : "None"}</div>
+            <div style={{ background: "var(--bg-primary)", borderRadius: 12, padding: "12px" }}>
+              <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>PLAN STATUS</div>
+              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: metrics?.has_plan ? CHART_GREEN : "var(--text-secondary)" }}>{metrics?.has_plan ? "Active" : "None"}</div>
             </div>
-            <div style={{ background: "#F6F2E9", borderRadius: 12, padding: "12px" }}>
-              <div style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>WS CHANNELS</div>
+            <div style={{ background: "var(--bg-primary)", borderRadius: 12, padding: "12px" }}>
+              <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>WS CHANNELS</div>
               <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{Object.keys(metrics?.websocket_health?.channels ?? {}).length}</div>
             </div>
-            <div style={{ background: "#F6F2E9", borderRadius: 12, padding: "12px" }}>
-              <div style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>TOTAL TASKS</div>
+            <div style={{ background: "var(--bg-primary)", borderRadius: 12, padding: "12px" }}>
+              <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>TOTAL TASKS</div>
               <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{metrics?.task_count ?? 0}</div>
             </div>
-            <div style={{ background: "#F6F2E9", borderRadius: 12, padding: "12px" }}>
-              <div style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>AVG LATENCY</div>
+            <div style={{ background: "var(--bg-primary)", borderRadius: 12, padding: "12px" }}>
+              <div style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", marginBottom: 4 }}>AVG LATENCY</div>
               <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{metrics?.api_latency?.avg_latency_ms ? `${metrics.api_latency.avg_latency_ms.toFixed(0)}ms` : "--"}</div>
             </div>
           </div>
         </Card>
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
     </div>
   );
 }

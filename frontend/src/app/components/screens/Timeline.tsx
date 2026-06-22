@@ -41,7 +41,7 @@ export function Timeline() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div>
         <h2 style={{ margin: 0 }}>Timeline</h2>
-        <p style={{ color: "#7A7A7A", fontSize: 13, marginTop: 4 }}>
+        <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
           {loading ? "Loading..." : `${tasks.length} tasks · ${events.length} events today`}
         </p>
       </div>
@@ -49,17 +49,17 @@ export function Timeline() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => { if (month === 0) { setMonth(11); setYear(y => y - 1); } else setMonth(m => m - 1); }}
-            style={{ background: "none", border: "1px solid #E9E4D8", borderRadius: 10, padding: "6px 10px", cursor: "pointer" }}>
+            style={{ background: "none", border: "1px solid var(--border-default)", borderRadius: 10, padding: "6px 10px", cursor: "pointer" }}>
             <ArrowLeft size={14} />
           </button>
           <h3 style={{ margin: 0, fontSize: 18 }}>{MONTHS[month]} {year}</h3>
           <button onClick={() => { if (month === 11) { setMonth(0); setYear(y => y + 1); } else setMonth(m => m + 1); }}
-            style={{ background: "none", border: "1px solid #E9E4D8", borderRadius: 10, padding: "6px 10px", cursor: "pointer" }}>
+            style={{ background: "none", border: "1px solid var(--border-default)", borderRadius: 10, padding: "6px 10px", cursor: "pointer" }}>
             <ArrowRight size={14} />
           </button>
         </div>
         <button onClick={() => { setMonth(now.getMonth()); setYear(now.getFullYear()); }}
-          style={{ background: "#0D0D0D", color: "#FFFFFF", border: "none", padding: "8px 16px", borderRadius: 10, fontSize: 12, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace" }}>
+          style={{ background: "var(--bg-sidebar)", color: "#FFFFFF", border: "none", padding: "8px 16px", borderRadius: 10, fontSize: 12, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace" }}>
           Today
         </button>
       </div>
@@ -67,7 +67,7 @@ export function Timeline() {
       <Card shadow>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
           {DAYS.map(d => (
-            <div key={d} style={{ textAlign: "center", fontSize: 11, color: "#7A7A7A", fontWeight: 500, padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace" }}>{d}</div>
+            <div key={d} style={{ textAlign: "center", fontSize: 11, color: "var(--text-secondary)", fontWeight: 500, padding: "8px 0", fontFamily: "'IBM Plex Mono', monospace" }}>{d}</div>
           ))}
           {days.map((d, i) => {
             const isToday = isCurrentMonth && d === today;
@@ -75,7 +75,7 @@ export function Timeline() {
               <div key={i} style={{
                 textAlign: "center", padding: "8px 4px", borderRadius: 10,
                 background: isToday ? "#0D0D0D" : "transparent",
-                color: isToday ? "#FFFFFF" : d ? "#111111" : "transparent",
+                color: isToday ? "#FFFFFF" : d ? "var(--text-primary)" : "transparent",
                 fontWeight: isToday ? 600 : 400,
                 fontSize: 14, cursor: d ? "pointer" : "default",
                 position: "relative",
@@ -93,15 +93,15 @@ export function Timeline() {
             <Calendar size={14} /> <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>Today's Tasks</span>
           </div>
           {todayTasks.length > 0 ? todayTasks.map((task: any) => (
-            <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #E9E4D8" }}>
-              <span style={{ color: "#7A7A7A", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", minWidth: 50 }}>
+            <div key={task.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border-default)" }}>
+              <span style={{ color: "var(--text-secondary)", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", minWidth: 50 }}>
                 {task.deadline ? new Date(task.deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
               </span>
-              <span style={{ flex: 1, fontSize: 13, color: "#111111" }}>{task.title}</span>
+              <span style={{ flex: 1, fontSize: 13, color: "var(--text-primary)" }}>{task.title}</span>
               <SourceBadge source={task.source || task.source_type} />
               <PriorityPill level={(task.priority ?? "P3") as any} />
             </div>
-          )) : <div style={{ color: "#7A7A7A", fontSize: 12 }}>No tasks due today.</div>}
+          )) : <div style={{ color: "var(--text-secondary)", fontSize: 12 }}>No tasks due today.</div>}
         </Card>
 
         <Card variant="yellow" shadow>
@@ -109,16 +109,16 @@ export function Timeline() {
             <Calendar size={14} /> <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "'Space Grotesk', sans-serif" }}>Today's Events</span>
           </div>
           {events.length > 0 ? events.map((ev) => (
-            <div key={ev.event_id} style={{ display: "flex", gap: 6, padding: "8px 0", borderBottom: "1px solid #E9E4D8", fontSize: 12, color: "#7A7A7A" }}>
+            <div key={ev.event_id} style={{ display: "flex", gap: 6, padding: "8px 0", borderBottom: "1px solid var(--border-default)", fontSize: 12, color: "var(--text-secondary)" }}>
               <div style={{ width: 3, borderRadius: 2, background: "#C9D8FF" }} />
               <div>
-                <div style={{ color: "#111111", fontWeight: 500, fontSize: 13 }}>{ev.title}</div>
+                <div style={{ color: "var(--text-primary)", fontWeight: 500, fontSize: 13 }}>{ev.title}</div>
                 <div style={{ fontSize: 10, fontFamily: "'IBM Plex Mono', monospace" }}>
                   {new Date(ev.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(ev.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
-          )) : <div style={{ color: "#7A7A7A", fontSize: 12 }}>No events today.</div>}
+          )) : <div style={{ color: "var(--text-secondary)", fontSize: 12 }}>No events today.</div>}
         </Card>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Bot } from "lucide-react";
 import { DndProvider } from "react-dnd";
@@ -7,13 +7,14 @@ import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
 import { RightPanel } from "./RightPanel";
 import { LayoutProvider, useLayout } from "./LayoutContext";
+import { ThemeProvider, useTheme } from "../../contexts/ThemeContext";
 
 const NAV_SHORTCUTS: Record<string, string> = {
   "gd": "/dashboard", "gi": "/inbox", "gp": "/planner",
-  "gt": "/timeline", "gh": "/hidden", "gdd": "/dedup-groups",
+  "gh": "/hidden", "gdd": "/dedup-groups",
   "gpr": "/priorities", "gde": "/dependencies", "gr": "/reports",
-  "gc": "/chat", "gn": "/notifications", "gs": "/settings",
-  "gx": "/traces",
+  "gn": "/notifications", "gs": "/settings",
+  "gx": "/traces", "gc": "/ai-chat",
 };
 
 function useKeyboardShortcuts() {
@@ -23,7 +24,6 @@ function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "k") { e.preventDefault(); navigate("/chat"); return; }
       if (e.ctrlKey && e.key === "b") { e.preventDefault(); togglePanel(); return; }
       buffer += e.key.toLowerCase();
       if (buffer.length > 3) buffer = buffer.slice(-3);
@@ -41,40 +41,40 @@ function useKeyboardShortcuts() {
 }
 
 function FloatingAIBtn() {
-  const { panelOpen, togglePanel } = useLayout();
+  const { panelOpen, togglePanel, llmOk } = useLayout();
   if (panelOpen) return null;
   return (
     <button onClick={togglePanel}
       style={{
         position: "absolute", bottom: 20, right: 20,
         width: 44, height: 44, borderRadius: 14,
-        background: "#0D0D0D", border: "none",
+        background: "var(--bg-sidebar)", border: "none",
         display: "flex", alignItems: "center", justifyContent: "center",
         cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
         zIndex: 100,
       }}>
       <Bot size={20} color="#FFFFFF" />
+      {!llmOk && (
+        <div style={{
+          position: "absolute", bottom: -2, right: -2,
+          width: 12, height: 12, borderRadius: "50%",
+          background: "#FF3B30",
+          border: "2px solid var(--bg-sidebar)",
+        }} title="AI API keys not available" />
+      )}
     </button>
   );
 }
 
 function LayoutInner({ children }: { children: ReactNode }) {
   useKeyboardShortcuts();
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") return (localStorage.getItem("theme") as "light" | "dark") || "light";
-    return "light";
-  });
-
-  useEffect(() => {
-    if (theme === "dark") document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  }, [theme]);
+  useTheme();
 
   return (
     <DndProvider backend={HTML5Backend}>
       <div style={{
         display: "flex", height: "100%", width: "100%",
-        overflow: "hidden", background: "var(--bg-primary, #F6F2E9)", position: "relative",
+        overflow: "hidden", background: "var(--bg-primary, var(--bg-primary))", position: "relative",
       }}>
         <Sidebar />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -94,8 +94,10 @@ function LayoutInner({ children }: { children: ReactNode }) {
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <LayoutProvider>
-      <LayoutInner>{children}</LayoutInner>
-    </LayoutProvider>
+    <ThemeProvider>
+      <LayoutProvider>
+        <LayoutInner>{children}</LayoutInner>
+      </LayoutProvider>
+    </ThemeProvider>
   );
 }

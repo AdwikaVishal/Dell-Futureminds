@@ -23,7 +23,7 @@ function SourcePanel({ raw_text, source_sentence }: { raw_text: string; source_s
   const lines = raw_text.split("\n").slice(0, 15);
   return (
     <div style={{ border: "1px solid #D9D9D9", overflow: "hidden", background: "#F8F8F6" }}>
-      <div style={{ padding: "6px 12px", borderBottom: "1px solid #D9D9D9", fontSize: 10, fontWeight: 600, color: "#7A7A7A", letterSpacing: "0.06em", textTransform: "uppercase", background: "#F0F0EE", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div style={{ padding: "6px 12px", borderBottom: "1px solid #D9D9D9", fontSize: 10, fontWeight: 600, color: "var(--text-secondary)", letterSpacing: "0.06em", textTransform: "uppercase", background: "#F0F0EE", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
         Source Text
       </div>
       <div style={{ padding: "10px 12px", maxHeight: 200, overflow: "auto" }}>
@@ -31,7 +31,7 @@ function SourcePanel({ raw_text, source_sentence }: { raw_text: string; source_s
           <div key={i} style={{
             fontFamily: "'IBM Plex Mono', monospace",
             fontSize: 11, lineHeight: 1.6,
-            color: "#7A7A7A",
+            color: "var(--text-secondary)",
             whiteSpace: "pre-wrap", wordBreak: "break-word",
           }}>
             {line || "\u00A0"}
@@ -46,19 +46,19 @@ function ExtractionItemCard({ item }: { item: any }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div style={{ border: "1px solid #D9D9D9", overflow: "hidden", background: "#FFFFFF" }}>
+    <div style={{ border: "1px solid #D9D9D9", overflow: "hidden", background: "var(--bg-elevated)" }}>
       <div style={{ display: "flex", gap: 12, padding: "14px 16px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
             <SparkleIcon size={12} />
-            <span style={{ fontSize: 13, fontWeight: 500, color: "#111111" }}>{item.title}</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>{item.title}</span>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
             <SourceBadge source={item.source} />
             {item.priority && <PriorityPill level={item.priority} />}
-            <span style={{ fontSize: 10, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>{item.task_id}</span>
+            <span style={{ fontSize: 10, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>{item.task_id}</span>
           </div>
-          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>
+          <div style={{ display: "flex", gap: 16, fontSize: 11, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>
             <span>Status: {item.status || "open"}</span>
             {item.deadline && <span>Due: {new Date(item.deadline).toLocaleDateString()}</span>}
             <span>Grounded: {item.grounded ? "Yes" : "No"}</span>
@@ -67,7 +67,7 @@ function ExtractionItemCard({ item }: { item: any }) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, minWidth: 140 }}>
           <ConfidenceBar value={item.confidence || 0} />
           <button onClick={() => setExpanded(!expanded)}
-            style={{ background: "none", border: "1px solid #D9D9D9", padding: "4px 10px", color: "#7A7A7A", fontSize: 10, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace" }}>
+            style={{ background: "none", border: "1px solid #D9D9D9", padding: "4px 10px", color: "var(--text-secondary)", fontSize: 10, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace" }}>
             {expanded ? "Hide source" : "View source"}
           </button>
         </div>
@@ -76,7 +76,7 @@ function ExtractionItemCard({ item }: { item: any }) {
         <div style={{ padding: "0 16px 14px 16px", borderTop: "1px solid #D9D9D9", paddingTop: 10 }}>
           <SourcePanel raw_text={item.raw_text} source_sentence={item.source_sentence} />
           {item.source_sentence && (
-            <div style={{ marginTop: 8, padding: "8px 10px", border: "1px solid #D9D9D9", fontSize: 11, fontStyle: "italic", color: "#7A7A7A", background: "#F8F8F6" }}>
+            <div style={{ marginTop: 8, padding: "8px 10px", border: "1px solid #D9D9D9", fontSize: 11, fontStyle: "italic", color: "var(--text-secondary)", background: "#F8F8F6" }}>
               Source sentence: "{item.source_sentence}"
             </div>
           )}
@@ -117,34 +117,34 @@ export function ExtractionScreen() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h2 style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-              <Sparkles size={18} color="#F97316" /> Extraction Visualization
+              <Sparkles size={18} color="var(--blue-primary)" /> Extraction Visualization
             </h2>
-            <p style={{ color: "#7A7A7A", fontSize: 12, marginTop: 2 }}>
+            <p style={{ color: "var(--text-secondary)", fontSize: 12, marginTop: 2 }}>
               See how AI extracts structured tasks from unstructured text
             </p>
           </div>
           <button onClick={fetchData}
-            style={{ background: "none", border: "1px solid #D9D9D9", padding: "8px 14px", color: "#7A7A7A", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
+            style={{ background: "none", border: "1px solid #D9D9D9", padding: "8px 14px", color: "var(--text-secondary)", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace" }}>
             <RefreshCw size={13} /> Refresh
           </button>
         </div>
 
         {/* Stats */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "#FFFFFF" }}>
-            <div style={{ color: "#7A7A7A", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Total Extractions</div>
-            <div style={{ color: "#111111", fontSize: 22, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{total}</div>
+          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "var(--bg-elevated)" }}>
+            <div style={{ color: "var(--text-secondary)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Total Extractions</div>
+            <div style={{ color: "var(--text-primary)", fontSize: 22, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{total}</div>
           </div>
-          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "#FFFFFF" }}>
-            <div style={{ color: "#7A7A7A", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>High Confidence (≥70%)</div>
+          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "var(--bg-elevated)" }}>
+            <div style={{ color: "var(--text-secondary)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>High Confidence (≥70%)</div>
             <div style={{ color: "#16A34A", fontSize: 22, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{highConf}</div>
           </div>
-          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "#FFFFFF" }}>
-            <div style={{ color: "#7A7A7A", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Medium (40-70%)</div>
+          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "var(--bg-elevated)" }}>
+            <div style={{ color: "var(--text-secondary)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Medium (40-70%)</div>
             <div style={{ color: "#D97706", fontSize: 22, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{medConf}</div>
           </div>
-          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "#FFFFFF" }}>
-            <div style={{ color: "#7A7A7A", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Low (&lt;40%)</div>
+          <div style={{ border: "1px solid #D9D9D9", padding: "14px 16px", background: "var(--bg-elevated)" }}>
+            <div style={{ color: "var(--text-secondary)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6, fontFamily: "'IBM Plex Mono', monospace" }}>Low (&lt;40%)</div>
             <div style={{ color: "#DC2626", fontSize: 22, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{lowConf}</div>
           </div>
         </div>
@@ -152,9 +152,9 @@ export function ExtractionScreen() {
         {/* Extraction list */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {loading ? (
-            <div style={{ textAlign: "center", color: "#7A7A7A", padding: 40, fontSize: 13 }}>Loading extractions...</div>
+            <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 40, fontSize: 13 }}>Loading extractions...</div>
           ) : extractions.length === 0 ? (
-            <div style={{ textAlign: "center", color: "#7A7A7A", padding: 40, fontSize: 13 }}>
+            <div style={{ textAlign: "center", color: "var(--text-secondary)", padding: 40, fontSize: 13 }}>
               <AlertCircle size={24} style={{ margin: "0 auto 12px", opacity: 0.4 }} />
               No extractions available. Run the pipeline to see AI-extracted tasks.
             </div>

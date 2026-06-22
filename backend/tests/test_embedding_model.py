@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 
-from core.embedding_model import get_embedding, cosine_similarity
+import pytest
+
+from core.embedding_model import get_embedding, cosine_similarity, load_embedding_model
+
+
+_has_embeddings = load_embedding_model() is not None
 
 
 class TestEmbeddingModel:
@@ -10,12 +15,14 @@ class TestEmbeddingModel:
         assert isinstance(emb, list)
         assert len(emb) > 0
 
+    @pytest.mark.skipif(not _has_embeddings, reason="Embedding model not loaded")
     def test_similar_texts_have_high_similarity(self):
         emb1 = get_embedding("Fix the login page bug")
         emb2 = get_embedding("Fix the login bug on the page")
         score = cosine_similarity(emb1, emb2)
         assert score > 0.5
 
+    @pytest.mark.skipif(not _has_embeddings, reason="Embedding model not loaded")
     def test_different_texts_have_low_similarity(self):
         emb1 = get_embedding("Fix the login page bug")
         emb2 = get_embedding("Order pizza for lunch")

@@ -31,7 +31,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: "0 24px",
-        background: "#FFFFFF",
+        background: "var(--bg-elevated)",
         flexShrink: 0,
       }}
     >
@@ -44,7 +44,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
           }}
         >
           <LogoMark size={20} />
-          <span style={{ color: "#111111", fontWeight: 700, fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+          <span style={{ color: "var(--text-primary)", fontWeight: 700, fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
             TaskPilot
           </span>
         </button>
@@ -65,7 +65,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
                   background: isActive ? "#F8F8F6" : "transparent",
                   border: "none",
                   cursor: "pointer",
-                  color: isActive ? "#111111" : "#7A7A7A",
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
                   fontSize: 12,
                   fontWeight: isActive ? 600 : 400,
                   fontFamily: "'Inter', sans-serif",
@@ -85,7 +85,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
           <span
             style={{
               background: "#F8F8F6",
-              color: "#7A7A7A",
+              color: "var(--text-secondary)",
               fontSize: 11,
               fontFamily: "'IBM Plex Mono', monospace",
               padding: "4px 10px",
@@ -99,7 +99,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
           onClick={() => navigate("/settings")}
           style={{
             background: "none", border: "none", cursor: "pointer",
-            color: location.pathname === "/settings" ? "#111111" : "#7A7A7A",
+            color: location.pathname === "/settings" ? "var(--text-primary)" : "var(--text-secondary)",
             padding: "6px",
             display: "flex", alignItems: "center",
           }}
@@ -112,7 +112,7 @@ export function AppHeader({ planTime }: { planTime?: string }) {
             background: "#F8F8F6",
             display: "flex", alignItems: "center", justifyContent: "center",
             border: "1px solid #D9D9D9",
-            color: "#7A7A7A",
+            color: "var(--text-secondary)",
             fontSize: 12, fontWeight: 600,
             fontFamily: "'IBM Plex Mono', monospace",
             cursor: "default",

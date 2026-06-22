@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { getHealth } from "../../api/taskpilot";
 
 type LayoutContextType = {
   sidebarOpen: boolean;
@@ -7,6 +8,7 @@ type LayoutContextType = {
   panelOpen: boolean;
   setPanelOpen: (v: boolean) => void;
   togglePanel: () => void;
+  llmOk: boolean;
 };
 
 const LayoutContext = createContext<LayoutContextType | null>(null);
@@ -14,6 +16,18 @@ const LayoutContext = createContext<LayoutContextType | null>(null);
 export function LayoutProvider({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [llmOk, setLlmOk] = useState(true);
+
+  useEffect(() => {
+    const fetchHealth = () => {
+      getHealth().then(h => {
+        setLlmOk(h.llm_ok !== false);
+      }).catch(() => {});
+    };
+    fetchHealth();
+    const interval = setInterval(fetchHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <LayoutContext.Provider value={{
@@ -23,6 +37,7 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
       panelOpen,
       setPanelOpen,
       togglePanel: () => setPanelOpen(v => !v),
+      llmOk,
     }}>
       {children}
     </LayoutContext.Provider>

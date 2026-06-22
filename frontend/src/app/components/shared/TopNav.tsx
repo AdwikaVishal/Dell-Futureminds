@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Search, Bell, Settings } from "lucide-react";
+import { Search, Bell, Settings, Moon, Sun } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useLayout } from "./LayoutContext";
+import { useTheme } from "../../contexts/ThemeContext";
 
 export function TopNav() {
   const navigate = useNavigate();
   const { togglePanel } = useLayout();
+  const { isDark, toggleTheme } = useTheme();
   const [searchVal, setSearchVal] = useState("");
 
   const handleSearch = () => {
@@ -19,15 +21,15 @@ export function TopNav() {
       height: 60, flexShrink: 0,
       display: "flex", alignItems: "center",
       gap: 12, padding: "0 16px",
-      borderBottom: "1px solid #E9E4D8",
-      background: "#F6F2E9",
+      borderBottom: "1px solid var(--border-default)",
+      background: "var(--bg-primary)",
     }}>
       <div style={{
         flex: 1, display: "flex", alignItems: "center", gap: 8,
-        background: "#FFFFFF", borderRadius: 14, padding: "8px 14px",
-        border: "1px solid #E9E4D8", maxWidth: 480,
+        background: "var(--bg-elevated)", borderRadius: 14, padding: "8px 14px",
+        border: "1px solid var(--border-default)", maxWidth: 480,
       }}>
-        <Search size={15} color="#B0A8A0" />
+        <Search size={15} color="var(--text-muted)" />
         <input
           value={searchVal}
           onChange={(e) => setSearchVal(e.target.value)}
@@ -35,38 +37,51 @@ export function TopNav() {
           placeholder="Search tasks, emails, blockers..."
           style={{
             flex: 1, border: "none", outline: "none",
-            background: "none", fontSize: 13, color: "#111111",
+            background: "none", fontSize: 13, color: "var(--text-primary)",
           }}
         />
       </div>
 
       <button
+        onClick={toggleTheme}
+        style={{
+          width: 36, height: 36, borderRadius: 10,
+          border: "1px solid var(--border-default)", background: "var(--bg-elevated)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer",
+        }}
+        aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      >
+        {isDark ? <Sun size={16} color="var(--blue-primary)" /> : <Moon size={16} color="var(--text-secondary)" />}
+      </button>
+
+      <button
         onClick={() => navigate("/notifications")}
         style={{
           width: 36, height: 36, borderRadius: 10,
-          border: "1px solid #E9E4D8", background: "#FFFFFF",
+          border: "1px solid var(--border-default)", background: "var(--bg-elevated)",
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer", position: "relative",
         }}
       >
-        <Bell size={16} color="#7A7A7A" />
+        <Bell size={16} color="var(--text-secondary)" />
       </button>
 
       <button
         onClick={() => navigate("/settings")}
         style={{
           width: 36, height: 36, borderRadius: 10,
-          border: "1px solid #E9E4D8", background: "#FFFFFF",
+          border: "1px solid var(--border-default)", background: "var(--bg-elevated)",
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer",
         }}
       >
-        <Settings size={16} color="#7A7A7A" />
+        <Settings size={16} color="var(--text-secondary)" />
       </button>
 
       <div style={{
         width: 36, height: 36, borderRadius: 10,
-        background: "#0D0D0D",
+        background: "var(--bg-sidebar)",
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "#FFFFFF", fontSize: 13, fontWeight: 600,
         fontFamily: "'IBM Plex Mono', monospace", cursor: "default",

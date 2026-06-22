@@ -67,6 +67,19 @@ async def run_pipeline() -> DailyPlan:
     return plan
 
 
+def _detect_vp_escalation(text: str) -> bool:
+    vp_terms = [
+        'vp', 'director', 'senior management', 'executive', 'escalation', 'critical',
+        'production', 'outage', 'downtime', 'incident', 'degraded', 'sev0', 'sev1', 'sev2', 'down',
+    ]
+    return any(term in text.lower() for term in vp_terms)
+
+
+def _detect_customer_facing(text: str) -> bool:
+    terms = ['customer', 'user', 'client', 'production', 'outage', 'downtime']
+    return any(term in text.lower() for term in terms)
+
+
 async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan:
     start_time = time.monotonic()
     logger.info("=== Reprioritize with injection started ===")
@@ -75,8 +88,10 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
         raise RuntimeError("No existing plan to reprioritize — run refresh first")
 
     try:
+        import random
+        combined_text = new_task_data.title + " " + (new_task_data.description or "")
         new_task = Task(
-            id=f"injected_{int(time.time())}",
+            id=f"injected_{int(time.time() * 1000)}_{random.randint(100, 999)}",
             title=new_task_data.title,
             description=new_task_data.description or "",
             source="injected",
@@ -88,7 +103,9 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
             team=_infer_team(new_task_data.owner),
             status="open",
             dependencies=[],
-            raw_text=new_task_data.title + " " + (new_task_data.description or ""),
+            raw_text=combined_text,
+            vp_escalation=_detect_vp_escalation(combined_text),
+            customer_facing=_detect_customer_facing(combined_text),
             grounded=True,
             grounding_confidence=1.0,
         )
@@ -122,13 +139,18 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
             store.narrative_alert = (
                 f"I noticed {', '.join(top.merged_sources)} and {top.id} are about the same issue "
                 f"— I merged them and placed {top.id} at #1. SLA: {top.deadline}. "
-                f"Dedup confidence: {top.dedup_confidence or 'N/A'}. "
-                f"Reason: {top.rationale}"
+                f"Dedup confidence: {top.dedup_confidence or 'N/A'}."
             )
         elif top and top.priority in ("P0", "P1"):
+            top_drivers = sorted(
+                top.score_breakdown.items(), key=lambda x: x[1], reverse=True
+            )[:2]
+            driver_str = ", ".join(
+                f"{k}={v:.0f}" for k, v in top_drivers
+            )
             store.narrative_alert = (
-                f"\u26a0 {top.id} is a {top.priority} with deadline {top.deadline}. "
-                f"Placed at #1 automatically. {top.rationale}"
+                f"\u26a0 {top.title} placed #1 with score {top.score:.0f} ({top.priority}). "
+                f"Key drivers: {driver_str}. Deadline: {top.deadline}."
             )
 
         if change_summary:

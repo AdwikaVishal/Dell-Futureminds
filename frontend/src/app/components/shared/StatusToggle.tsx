@@ -5,7 +5,7 @@ const STATUSES = [
   { value: "in_progress", label: "In Progress", icon: <RotateCcw className="w-3 h-3" />, color: "bg-[#F5D66E]" },
   { value: "done", label: "Done", icon: <Check className="w-3 h-3" />, color: "bg-[#BFD78D]" },
   { value: "blocked", label: "Blocked", icon: <Lock className="w-3 h-3" />, color: "bg-[#F7C5E6]" },
-  { value: "deferred", label: "Deferred", icon: <Archive className="w-3 h-3" />, color: "bg-[#E9E4D8]" },
+  { value: "deferred", label: "Deferred", icon: <Archive className="w-3 h-3" />, color: "bg-[var(--border-default)]" },
 ];
 
 export function StatusToggle({ taskId, currentStatus, onStatusChange, size = "md" }: {
@@ -16,15 +16,15 @@ export function StatusToggle({ taskId, currentStatus, onStatusChange, size = "md
 
   return (
     <div className="relative group inline-block">
-      <button className={`flex items-center rounded-lg transition-colors ${sizeClasses[size]} ${current?.color || "bg-[#E9E4D8]"} text-[#111111] hover:opacity-80`} title="Change status">
+      <button className={`flex items-center rounded-lg transition-colors ${sizeClasses[size]} ${current?.color || "bg-[var(--border-default)]"} text-[var(--text-primary)] hover:opacity-80`} title="Change status">
         {current?.icon}
         <span>{current?.label || "Unknown"}</span>
       </button>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-white border border-[#E9E4D8] rounded-2xl p-2 shadow-lg z-10 min-w-[130px]">
+      <div className="absolute top-full right-0 mt-1 hidden group-hover:block bg-white border border-[var(--border-default)] rounded-2xl p-2 shadow-lg z-10 min-w-[130px]">
         <div className="space-y-0.5">
           {STATUSES.map((s) => (
             <button key={s.value}
-              className={`flex items-center gap-2 w-full px-3 py-1.5 rounded-xl text-xs transition-colors ${s.value === currentStatus ? "bg-[#F6F2E9] font-medium" : "hover:bg-[#F6F2E9]"}`}
+              className={`flex items-center gap-2 w-full px-3 py-1.5 rounded-xl text-xs transition-colors ${s.value === currentStatus ? "bg-[var(--bg-primary)] font-medium" : "hover:bg-[var(--bg-primary)]"}`}
               onClick={() => onStatusChange(taskId, s.value)}>
               <span className={`w-2 h-2 rounded-full ${s.color}`} />
               <span>{s.label}</span>

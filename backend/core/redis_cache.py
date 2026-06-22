@@ -99,6 +99,53 @@ class CacheManager:
     async def invalidate_for_source(self, source: str):
         await self.clear_pattern(f"*{source}*")
 
+    async def invalidate_for_task_update(self):
+        await self.clear_pattern("chat:*")
+
+    # ============ CHAT-SPECIFIC CACHE METHODS ============
+
+    async def cache_chat_response(
+        self,
+        query: str,
+        user_id: str,
+        response: dict[str, Any],
+        ttl: int = 86400,
+    ):
+        key = self._key("chat:response", user_id, query)
+        await self.set(key, response, ttl=ttl)
+
+    async def get_chat_response(
+        self, query: str, user_id: str
+    ) -> Optional[dict[str, Any]]:
+        key = self._key("chat:response", user_id, query)
+        return await self.get(key)
+
+    async def cache_context(
+        self,
+        user_id: str,
+        context_type: str,
+        context: dict[str, Any],
+        ttl: int = 3600,
+    ):
+        key = self._key("chat:context", user_id, context_type)
+        await self.set(key, context, ttl=ttl)
+
+    async def get_context(
+        self, user_id: str, context_type: str
+    ) -> Optional[dict[str, Any]]:
+        key = self._key("chat:context", user_id, context_type)
+        return await self.get(key)
+
+    async def cache_session(
+        self, session_id: str, data: dict[str, Any], ttl: int = 1800
+    ):
+        key = self._key("chat:session", session_id)
+        await self.set(key, data, ttl=ttl)
+
+    async def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
+        key = self._key("chat:session", session_id)
+        return await self.get(key)
+
     async def close(self):
         if self._client:
             await self._client.close()

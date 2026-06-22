@@ -16,6 +16,8 @@ else:
 
 class Settings(BaseSettings):
     # ── LLM ──
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     llm_api_key: str = ""
@@ -93,3 +95,5 @@ settings = Settings()
 # Backward compat: export to os.environ for modules that use os.environ
 if not os.environ.get("LLM_API_KEY") and settings.llm_key:
     os.environ["LLM_API_KEY"] = settings.llm_key
+if settings.groq_api_key and not os.environ.get("GROQ_API_KEY"):
+    os.environ["GROQ_API_KEY"] = settings.groq_api_key

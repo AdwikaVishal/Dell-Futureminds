@@ -30,33 +30,33 @@ export function CreateTaskModal({ onCreated }: { onCreated?: () => void }) {
   return (
     <>
       <button onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-[#F97316] text-white rounded-2xl hover:opacity-80 transition-opacity text-sm">
+        className="flex items-center gap-2 px-4 py-2 bg-[var(--blue-primary)] text-white rounded-2xl hover:opacity-80 transition-opacity text-sm">
         <Plus className="w-4 h-4" /> New Task
       </button>
 
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20" onClick={() => setIsOpen(false)}>
-          <div className="bg-white rounded-3xl border border-[#E9E4D8] p-6 max-w-lg w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl border border-[var(--border-default)] p-6 max-w-lg w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-[#111111]">Create New Task</h3>
-              <button onClick={() => setIsOpen(false)} className="p-1 rounded-lg hover:bg-[#F6F2E9]"><X className="w-4 h-4" /></button>
+              <h3 className="text-lg font-bold text-[var(--text-primary)]">Create New Task</h3>
+              <button onClick={() => setIsOpen(false)} className="p-1 rounded-lg hover:bg-[var(--bg-primary)]"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-[#111111]">Title *</label>
+                <label className="text-xs font-medium text-[var(--text-primary)]">Title *</label>
                 <input type="text" value={data.title} onChange={(e) => setData({ ...data, title: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border border-[#E9E4D8] rounded-xl focus:outline-none focus:border-[#F97316] text-sm" placeholder="Enter task title" />
+                  className="w-full mt-1 px-3 py-2 border border-[var(--border-default)] rounded-xl focus:outline-none focus:border-[var(--blue-primary)] text-sm" placeholder="Enter task title" />
               </div>
               <div>
-                <label className="text-xs font-medium text-[#111111]">Description</label>
+                <label className="text-xs font-medium text-[var(--text-primary)]">Description</label>
                 <textarea value={data.description} onChange={(e) => setData({ ...data, description: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border border-[#E9E4D8] rounded-xl focus:outline-none focus:border-[#F97316] resize-none text-sm" rows={3} placeholder="Optional description" />
+                  className="w-full mt-1 px-3 py-2 border border-[var(--border-default)] rounded-xl focus:outline-none focus:border-[var(--blue-primary)] resize-none text-sm" rows={3} placeholder="Optional description" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-[#111111]">Priority</label>
+                  <label className="text-xs font-medium text-[var(--text-primary)]">Priority</label>
                   <select value={data.priority} onChange={(e) => setData({ ...data, priority: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border border-[#E9E4D8] rounded-xl focus:outline-none focus:border-[#F97316] text-sm">
+                    className="w-full mt-1 px-3 py-2 border border-[var(--border-default)] rounded-xl focus:outline-none focus:border-[var(--blue-primary)] text-sm">
                     <option value="P0">P0 - Critical</option>
                     <option value="P1">P1 - High</option>
                     <option value="P2">P2 - Medium</option>
@@ -64,17 +64,17 @@ export function CreateTaskModal({ onCreated }: { onCreated?: () => void }) {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-[#111111]">Deadline</label>
+                  <label className="text-xs font-medium text-[var(--text-primary)]">Deadline</label>
                   <input type="date" value={data.deadline} onChange={(e) => setData({ ...data, deadline: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border border-[#E9E4D8] rounded-xl focus:outline-none focus:border-[#F97316] text-sm" />
+                    className="w-full mt-1 px-3 py-2 border border-[var(--border-default)] rounded-xl focus:outline-none focus:border-[var(--blue-primary)] text-sm" />
                 </div>
               </div>
-              <p className="text-xs text-[#7A7A7A]">Task will be automatically prioritized in your plan.</p>
+              <p className="text-xs text-[var(--text-secondary)]">Task will be automatically prioritized in your plan.</p>
             </div>
             <div className="flex gap-3 mt-5">
-              <button onClick={() => setIsOpen(false)} className="flex-1 px-4 py-2 bg-[#F6F2E9] text-[#7A7A7A] rounded-xl hover:bg-[#E9E4D8] transition-colors text-sm">Cancel</button>
+              <button onClick={() => setIsOpen(false)} className="flex-1 px-4 py-2 bg-[var(--bg-primary)] text-[var(--text-secondary)] rounded-xl hover:bg-[var(--border-default)] transition-colors text-sm">Cancel</button>
               <button onClick={handleCreate} disabled={!data.title.trim() || creating}
-                className="flex-1 px-4 py-2 bg-[#F97316] text-white rounded-xl hover:opacity-80 transition-opacity disabled:opacity-50 text-sm">
+                className="flex-1 px-4 py-2 bg-[var(--blue-primary)] text-white rounded-xl hover:opacity-80 transition-opacity disabled:opacity-50 text-sm">
                 {creating ? "Creating..." : "Create Task"}
               </button>
             </div>

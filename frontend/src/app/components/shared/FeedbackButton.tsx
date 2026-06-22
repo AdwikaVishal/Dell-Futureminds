@@ -35,9 +35,9 @@ export function FeedbackButton({ task, compact }: { task: any; compact?: boolean
       title="Upvote this task type"
       style={{
         background: sent ? "#0D0D0D" : "none",
-        border: sent ? "none" : "1px solid #E9E4D8",
+        border: sent ? "none" : "1px solid var(--border-default)",
         cursor: "pointer",
-        color: sent ? "#FFFFFF" : "#7A7A7A",
+        color: sent ? "#FFFFFF" : "var(--text-secondary)",
         padding: compact ? "3px 8px" : "4px 10px",
         borderRadius: 8, fontSize: compact ? 10 : 11, fontWeight: 500,
         fontFamily: "'IBM Plex Mono', monospace",

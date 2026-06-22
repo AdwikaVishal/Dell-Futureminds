@@ -230,8 +230,116 @@ class GeminiBackend(LLMBackend):
 
 
 # ---------------------------------------------------------------------------
+# Groq backend (PRIMARY — fast inference)
+# Uses Groq's OpenAI-compatible endpoint.
+# Set in .env:
+#   GROQ_API_KEY=gsk_...
+#   GROQ_MODEL=llama-3.3-70b-versatile   (default)
+# ---------------------------------------------------------------------------
+
+
+class GroqBackend(LLMBackend):
+    def __init__(self) -> None:
+        self.api_key = os.environ.get("GROQ_API_KEY", "")
+        self.model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.base_url = "https://api.groq.com/openai/v1"
+
+    @property
+    def name(self) -> str:
+        return f"Groq({self.model})"
+
+    @classmethod
+    async def check_connectivity(cls) -> tuple[bool, str]:
+        api_key = os.environ.get("GROQ_API_KEY", "")
+        if not api_key:
+            return False, "GROQ_API_KEY not set"
+        model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": "ping"}],
+                        "max_tokens": 1,
+                    },
+                )
+                resp.raise_for_status()
+                return True, f"Groq available (model={model})"
+        except Exception as e:
+            return False, f"Groq unreachable: {e}"
+
+    async def generate(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        json_mode: bool = False,
+        temperature: float = 0.2,
+        max_output_tokens: int = 2048,
+    ) -> LLMResponse:
+        if not self.api_key:
+            raise LLMClientError("GROQ_API_KEY is not set")
+
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        body: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_output_tokens,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        start = time.monotonic()
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await _retry_with_backoff(
+                lambda: client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
+            )
+            data = response.json()
+        latency_ms = (time.monotonic() - start) * 1000
+
+        text = data["choices"][0]["message"]["content"] or ""
+        usage = data.get("usage", {})
+        input_tokens = usage.get("prompt_tokens", 0) or 0
+        output_tokens = usage.get("completion_tokens", 0) or 0
+
+        parsed_json = None
+        json_parse_error = None
+        if json_mode:
+            parsed_json, json_parse_error = _extract_json(text)
+
+        return LLMResponse(
+            text=text,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=latency_ms,
+            model=self.model,
+            parsed_json=parsed_json,
+            json_parse_error=json_parse_error,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Grok backend (FALLBACK #1)
-# Used when Gemini fails or GEMINI_API_KEY is not set.
+# Used when Groq/Gemini fails.
 # Set in .env:
 #   LLM_API_KEY=xai-...
 #   LLM_MODEL=grok-3-mini   (default)
@@ -361,14 +469,17 @@ class OpenAICompatibleBackend(GrokBackend):
 
     @classmethod
     async def check_connectivity(cls) -> tuple[bool, str, list[str]]:
-        # Try Gemini first, then Grok
+        # Try Groq first, then Gemini
+        groq_ok, groq_msg = await GroqBackend.check_connectivity()
+        if groq_ok:
+            return True, f"Groq (primary): {groq_msg}", []
         gem_ok, gem_msg = await GeminiBackend.check_connectivity()
         if gem_ok:
-            return True, f"Gemini (primary): {gem_msg}", []
+            return True, f"Gemini (fallback): {gem_msg}", []
         grok_ok, grok_msg, models = await GrokBackend.check_connectivity()
         if grok_ok:
-            return True, f"Grok (fallback): {grok_msg}", models
-        return False, f"Both LLMs unavailable. Gemini: {gem_msg} | Grok: {grok_msg}", []
+            return True, f"Grok (fallback #2): {grok_msg}", models
+        return False, f"All LLMs unavailable. Groq: {groq_msg} | Gemini: {gem_msg} | Grok: {grok_msg}", []
 
 
 # ---------------------------------------------------------------------------
@@ -788,10 +899,11 @@ class RulesEngineBackend(LLMBackend):
 class ResilientLLMClient:
     def __init__(self) -> None:
         self.backends: list[LLMBackend] = [
-            GeminiBackend(),  # PRIMARY
-            GrokBackend(),  # FALLBACK #1
-            HeuristicBackend(),  # FALLBACK #2
-            RulesEngineBackend(),  # FALLBACK #3
+            GroqBackend(),  # PRIMARY — fast inference
+            GeminiBackend(),  # FALLBACK #1 — accurate
+            GrokBackend(),  # FALLBACK #2
+            HeuristicBackend(),  # FALLBACK #3
+            RulesEngineBackend(),  # FALLBACK #4
         ]
 
     async def call_llm(

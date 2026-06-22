@@ -15,7 +15,7 @@ function ConfidenceBadge({ value }: { value: number }) {
       padding: "4px 12px", borderRadius: 8,
       background: color, fontFamily: "'IBM Plex Mono', monospace",
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0D0D0D", display: "inline-block" }} />
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--bg-sidebar)", display: "inline-block" }} />
       {pct}% confidence
     </span>
   );
@@ -24,13 +24,13 @@ function ConfidenceBadge({ value }: { value: number }) {
 function RawSourcePanel({ raw_text }: { raw_text: string }) {
   const lines = raw_text.split("\n").slice(0, 20);
   return (
-    <div style={{ flex: 1, minWidth: 0, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "#F6F2E9" }}>
-      <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 600, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", background: "#E9E4D8" }}>
+    <div style={{ flex: 1, minWidth: 0, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-primary)" }}>
+      <div style={{ padding: "8px 14px", fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", background: "var(--border-default)" }}>
         Raw source
       </div>
       <div style={{ padding: "12px 14px", overflow: "auto", flex: 1 }}>
         {lines.map((line, i) => (
-          <div key={i} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, lineHeight: 1.6, color: "#7A7A7A", whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: line.trim() ? 1 : 0.3 }}>
+          <div key={i} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, lineHeight: 1.6, color: "var(--text-secondary)", whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: line.trim() ? 1 : 0.3 }}>
             {line || "\u00A0"}
           </div>
         ))}
@@ -41,53 +41,53 @@ function RawSourcePanel({ raw_text }: { raw_text: string }) {
 
 function ExtractedTaskPanel({ item }: { item: ExtractionItem }) {
   return (
-    <div style={{ flex: 1, minWidth: 0, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "#FFFFFF", border: "1px solid #E9E4D8" }}>
-      <div style={{ padding: "8px 14px", borderBottom: "1px solid #E9E4D8", display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", background: "#F6F2E9" }}>
+    <div style={{ flex: 1, minWidth: 0, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", background: "var(--bg-elevated)", border: "1px solid var(--border-default)" }}>
+      <div style={{ padding: "8px 14px", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace", textTransform: "uppercase", letterSpacing: "0.04em", background: "var(--bg-primary)" }}>
         <SparkleIcon size={12} />
         AI-Extracted task
       </div>
       <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
         <div>
-          <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 2 }}>Title</div>
-          <div style={{ color: "#111111", fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>{item.title}</div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 2 }}>Title</div>
+          <div style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>{item.title}</div>
         </div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           {item.priority && (
             <div>
-              <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 3 }}>Priority</div>
+              <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 3 }}>Priority</div>
               <PriorityPill level={item.priority} />
             </div>
           )}
           {item.deadline && (
             <div>
-              <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 3 }}>Due date</div>
-              <span style={{ color: "#111111", fontSize: 13 }}>{item.deadline}</span>
+              <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 3 }}>Due date</div>
+              <span style={{ color: "var(--text-primary)", fontSize: 13 }}>{item.deadline}</span>
             </div>
           )}
           <div>
-            <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 3 }}>Status</div>
+            <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 3 }}>Status</div>
             <StatusPill status={item.status || "open"} />
           </div>
         </div>
         <div>
-          <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 3 }}>Source</div>
+          <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 3 }}>Source</div>
           <SourceBadge source={item.source} />
         </div>
         {item.confidence != null && (
           <div>
-            <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 4 }}>Confidence</div>
+            <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 4 }}>Confidence</div>
             <ConfidenceBadge value={item.confidence} />
           </div>
         )}
         {item.source_sentence && (
           <div>
-            <div style={{ color: "#7A7A7A", fontSize: 11, marginBottom: 2 }}>Source sentence</div>
-            <div style={{ color: "#7A7A7A", fontSize: 12, fontStyle: "italic", lineHeight: 1.5, padding: "8px 10px", background: "#F6F2E9", borderRadius: 10 }}>
+            <div style={{ color: "var(--text-secondary)", fontSize: 11, marginBottom: 2 }}>Source sentence</div>
+            <div style={{ color: "var(--text-secondary)", fontSize: 12, fontStyle: "italic", lineHeight: 1.5, padding: "8px 10px", background: "var(--bg-primary)", borderRadius: 10 }}>
               &ldquo;{item.source_sentence}&rdquo;
             </div>
           </div>
         )}
-        <div style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid #E9E4D8" }}>
+        <div style={{ marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--border-default)" }}>
           <a href={`/tasks?task=${item.task_id}`} style={{ color: "#0D0D0D", fontSize: 12, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500 }}>
             Trace to source &rarr;
           </a>
@@ -107,7 +107,7 @@ export function ExtractionVisualization({ item }: ExtractionVisualizationProps) 
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
         <SparkleIcon size={13} />
         <span style={{ color: "#0D0D0D", fontSize: 12, fontWeight: 500 }}>Extraction</span>
-        <span style={{ color: "#7A7A7A", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", marginLeft: "auto" }}>{item.task_id}</span>
+        <span style={{ color: "var(--text-secondary)", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", marginLeft: "auto" }}>{item.task_id}</span>
       </div>
       <div style={{ display: "flex", gap: 12 }}>
         <RawSourcePanel raw_text={item.raw_text} />

@@ -94,9 +94,64 @@ export type CalendarEvent = {
   source: string;
 };
 
+export type CalendarDay = {
+  date: string;
+  day: number;
+  is_today: boolean;
+  is_current_month: boolean;
+  tasks: any[];
+  events: any[];
+  task_count: number;
+};
+
+export type CalendarMonth = {
+  year: number;
+  month: number;
+  month_name: string;
+  weekdays: string[];
+  days: CalendarDay[];
+};
+
+export type WeeklyPlan = {
+  week_start: string;
+  week_end: string;
+  days: Record<string, any[]>;
+  tasks_by_day: Record<string, any[]>;
+};
+
+export type ReferencedTask = {
+  id: string;
+  title: string;
+  source: string;
+};
+
+export type ContextUsed = {
+  task_count: number;
+  alert_count: number;
+  hidden_task_count: number;
+  timestamp: string;
+};
+
 export type ChatResponse = {
   answer: string;
   referenced_task_ids: string[];
+  referenced_tasks?: ReferencedTask[];
+  suggestions?: string[];
+  context_used?: ContextUsed;
+  status?: string;
+};
+
+export type ChatHistoryItem = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  referenced_tasks?: ReferencedTask[];
+};
+
+export type ChatHistoryResponse = {
+  history: ChatHistoryItem[];
+  count: number;
 };
 
 export type ChatRequest = {
@@ -193,6 +248,67 @@ export type UnblockingRecommendation = {
   blocking_task_title: string;
   blocking_task_status: string;
   suggestion: string;
+};
+
+export type DependencyNode = {
+  id: string;
+  title: string;
+  source_type: string;
+  priority: string;
+  status: string;
+  is_blocked: boolean;
+  is_blocking: boolean;
+  blocked_by_count: number;
+  blocking_count: number;
+  level: number;
+};
+
+export type DependencyEdge = {
+  source: string;
+  target: string;
+  type: string;
+  is_critical: boolean;
+  weight: number;
+};
+
+export type BlockingImpactDetail = {
+  task_id: string;
+  title: string;
+  priority: string;
+  status: string;
+  blocks_directly: number;
+  blocks_transitively: number;
+  total_impact: number;
+  blocked_by: string[];
+  impact_score: number;
+  impact_percentage: number;
+};
+
+export type UnblockingRec = {
+  blocking_task_id: string;
+  blocking_task_title: string;
+  blocking_task_priority: string;
+  blocked_tasks: string[];
+  blocked_task_titles: string[];
+  total_blocked_count: number;
+  priority: string;
+  effort_estimate: string;
+  suggestion: string;
+};
+
+export type DependencyInsights = {
+  tasks: DependencyNode[];
+  edges: DependencyEdge[];
+  blockers: BlockingImpactDetail[];
+  recommendations: UnblockingRec[];
+  critical_path: string[];
+  summary: {
+    total_tasks: number;
+    total_edges: number;
+    blockers_count: number;
+    critical_path_length: number;
+    has_critical_path: boolean;
+  };
 };
 
 export type DedupGroup = {
@@ -292,6 +408,10 @@ export async function getDependencyAnalysis(): Promise<any> {
   return jsonFetch(`${API_BASE}/api/dependency-analysis`);
 }
 
+export async function getDependencyInsights(): Promise<DependencyInsights> {
+  return jsonFetch<DependencyInsights>(`${API_BASE}/api/dependency/insights`);
+}
+
 export async function getDedupGroups(): Promise<{ groups: DedupGroup[] }> {
   return jsonFetch(`${API_BASE}/api/dedup-groups`);
 }
@@ -331,6 +451,18 @@ export async function deleteTask(taskId: string): Promise<{ status: string; task
   });
 }
 
+export async function getChatHistory(limit: number = 50): Promise<ChatHistoryResponse> {
+  return jsonFetch<ChatHistoryResponse>(`${API_BASE}/api/chat/history?limit=${limit}`);
+}
+
+export async function clearChatHistory(): Promise<{ status: string; message: string }> {
+  return jsonFetch<{ status: string; message: string }>(`${API_BASE}/api/chat/clear`, { method: "POST" });
+}
+
+export async function getChatSuggestions(): Promise<{ suggestions: string[] }> {
+  return jsonFetch<{ suggestions: string[] }>(`${API_BASE}/api/chat/suggestions`);
+}
+
 export async function getA2aStatus(): Promise<{ status: string; agent_id: string; agents_connected: number; agents: any[] }> {
   return jsonFetch(`${API_BASE}/api/a2a/status`);
 }
@@ -353,8 +485,42 @@ export async function getHealth(): Promise<{
   task_count: number;
   last_sync: string | null;
   connectors: ConnectorStatus[];
+  llm_ok: boolean;
+  groq_ok: boolean;
+  groq_status: string;
+  gemini_ok: boolean;
+  gemini_status: string;
 }> {
   return jsonFetch(`${API_BASE}/api/health`);
+}
+
+export async function getCalendarMonth(year: number, month: number): Promise<CalendarMonth> {
+  return jsonFetch<CalendarMonth>(`${API_BASE}/api/calendar/month/${year}/${month}`);
+}
+
+export async function getWeekPlan(date?: string): Promise<WeeklyPlan> {
+  const url = date ? `${API_BASE}/api/calendar/week?date=${date}` : `${API_BASE}/api/calendar/week`;
+  return jsonFetch<WeeklyPlan>(url);
+}
+
+export async function moveTaskOnCalendar(taskId: string, targetDate: string, targetTime: string): Promise<{ status: string }> {
+  return jsonFetch(`${API_BASE}/api/calendar/task/${taskId}/move`, {
+    method: "POST",
+    body: JSON.stringify({ target_date: targetDate, target_time: targetTime }),
+  });
+}
+
+export async function addCalendarEvent(eventData: Record<string, any>): Promise<{ status: string; event: CalendarEvent }> {
+  return jsonFetch(`${API_BASE}/api/calendar/events`, {
+    method: "POST",
+    body: JSON.stringify(eventData),
+  });
+}
+
+export async function deleteCalendarEvent(eventId: string): Promise<{ status: string; event_id: string }> {
+  return jsonFetch(`${API_BASE}/api/calendar/events/${eventId}`, {
+    method: "DELETE",
+  });
 }
 
 type WsCallback = (event: WebSocketEvent) => void;

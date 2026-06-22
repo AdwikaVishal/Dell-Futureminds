@@ -1,17 +1,17 @@
 const SOURCE_COLORS: Record<string, string> = {
-  jira: "#C9D8FF", Jira: "#C9D8FF",
-  github: "#DCC7F7", GitHub: "#DCC7F7",
-  slack: "#F7C5E6", Slack: "#F7C5E6",
-  outlook: "#C9D8FF", Outlook: "#C9D8FF",
-  email: "#C9D8FF", Email: "#C9D8FF",
-  servicenow: "#BFD78D", ServiceNow: "#BFD78D",
-  "meeting transcripts": "#FAD6B3", "Meeting Transcripts": "#FAD6B3",
-  defect: "#F7C5E6", Defect: "#F7C5E6",
-  injected: "#F5D66E", Injected: "#F5D66E",
+  jira: "var(--pastel-blue)", Jira: "var(--pastel-blue)",
+  github: "var(--pastel-purple)", GitHub: "var(--pastel-purple)",
+  slack: "var(--pastel-pink)", Slack: "var(--pastel-pink)",
+  outlook: "var(--pastel-blue)", Outlook: "var(--pastel-blue)",
+  email: "var(--pastel-blue)", Email: "var(--pastel-blue)",
+  servicenow: "var(--pastel-green)", ServiceNow: "var(--pastel-green)",
+  "meeting transcripts": "var(--pastel-orange)", "Meeting Transcripts": "var(--pastel-orange)",
+  defect: "var(--pastel-pink)", Defect: "var(--pastel-pink)",
+  injected: "var(--pastel-yellow)", Injected: "var(--pastel-yellow)",
 };
 
 export function SourceBadge({ source }: { source: string }) {
-  const bg = SOURCE_COLORS[source] || "#E9E4D8";
+  const bg = SOURCE_COLORS[source] || "var(--border-default)";
   return (
     <span style={{
       background: bg, color: "#0D0D0D",

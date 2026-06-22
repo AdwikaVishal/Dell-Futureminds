@@ -7,7 +7,7 @@ const PASTEL_MAP: Record<string, { bg: string; border: string }> = {
   blue: { bg: "#C9D8FF", border: "#A8C0F0" },
   purple: { bg: "#DCC7F7", border: "#C8A8E8" },
   orange: { bg: "#FAD6B3", border: "#F0C090" },
-  default: { bg: "#FFFFFF", border: "#E9E4D8" },
+  default: { bg: "var(--bg-card)", border: "var(--border-default)" },
 };
 
 export function Card({
@@ -28,7 +28,8 @@ export function Card({
         border: `1px solid ${v.border}`,
         borderRadius: 18,
         padding: "20px 22px",
-        boxShadow: shadow ? "0 4px 24px rgba(0,0,0,0.04)" : "none",
+        boxShadow: shadow ? "var(--shadow-soft)" : "none",
+        color: "var(--text-primary)",
         ...style,
       }}
     >

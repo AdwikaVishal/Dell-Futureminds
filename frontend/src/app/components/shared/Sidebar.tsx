@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import {
-  LayoutDashboard, Inbox, CalendarRange, Sparkles, ListChecks,
-  GitBranch, BarChart3, Puzzle, Bell, Settings, SquarePen, Bot, GitMerge,
-  MessageSquare, Activity
+  LayoutDashboard, Inbox, CalendarRange, Sparkles,
+  GitBranch, BarChart3, Bell, Settings, SquarePen, GitMerge,
+  Activity, MessageSquare
 } from "lucide-react";
 import { useLayout } from "./LayoutContext";
 import { getHealth } from "../../api/taskpilot";
@@ -12,15 +12,13 @@ import { A2AStatus } from "./A2AStatus";
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/inbox", label: "Inbox", icon: Inbox },
+  { path: "/ai-chat", label: "AI Chat", icon: MessageSquare },
   { path: "/planner", label: "Planner", icon: CalendarRange },
-  { path: "/timeline", label: "Timeline", icon: ListChecks },
   { path: "/hidden", label: "Hidden Tasks", icon: Sparkles },
   { path: "/dedup-groups", label: "Dedup Groups", icon: GitMerge },
   { path: "/priorities", label: "Priorities", icon: BarChart3 },
   { path: "/dependencies", label: "Dependencies", icon: GitBranch },
   { path: "/reports", label: "Reports", icon: BarChart3 },
-  { path: "/chat", label: "AI Chat", icon: MessageSquare },
-  { path: "/integrations", label: "Integrations", icon: Puzzle },
   { path: "/notifications", label: "Notifications", icon: Bell },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
@@ -28,7 +26,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sidebarOpen, toggleSidebar, togglePanel, panelOpen } = useLayout();
+  const { sidebarOpen, toggleSidebar, llmOk } = useLayout();
   const w = sidebarOpen ? 240 : 60;
   const [connectors, setConnectors] = useState<{ connected: number; total: number; lastSync: string | null }>({ connected: 0, total: 0, lastSync: null });
 
@@ -47,7 +45,7 @@ export function Sidebar() {
     <div style={{
       width: w, flexShrink: 0, height: "100%",
       overflow: "hidden", transition: "width 0.25s ease",
-      background: "#0D0D0D",
+      background: "var(--bg-sidebar)",
     }}>
       <div style={{
         width: 240, height: "100%",
@@ -58,7 +56,7 @@ export function Sidebar() {
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px 24px", background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}>
           <div style={{
             width: 32, height: 32, borderRadius: 10,
-            background: "#FFFFFF", display: "flex",
+            background: "var(--bg-elevated)", display: "flex",
             alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <SquarePen size={16} color="#0D0D0D" />
@@ -74,6 +72,7 @@ export function Sidebar() {
         {sidebarOpen && NAV_ITEMS.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
+          const isAIChat = item.path === "/ai-chat";
           return (
             <button
               key={item.path}
@@ -83,13 +82,23 @@ export function Sidebar() {
                 padding: "10px 12px", borderRadius: 12,
                 background: isActive ? "rgba(255,255,255,0.1)" : "transparent",
                 border: "none", cursor: "pointer",
-                color: isActive ? "#FFFFFF" : "#7A7A7A",
+                color: isActive ? "#FFFFFF" : "var(--text-secondary)",
                 fontSize: 13, fontWeight: isActive ? 500 : 400,
                 textAlign: "left", width: "100%",
                 transition: "all 0.15s",
               }}
             >
-              <Icon size={16} />
+              <div style={{ position: "relative" }}>
+                <Icon size={16} />
+                {isAIChat && !llmOk && (
+                  <div style={{
+                    position: "absolute", top: -4, right: -6,
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: "#FF3B30",
+                    border: "2px solid #0D0D0D",
+                  }} />
+                )}
+              </div>
               {item.label}
             </button>
           );
@@ -99,25 +108,12 @@ export function Sidebar() {
 
         {sidebarOpen && (
           <>
-            <button onClick={togglePanel}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 12px", borderRadius: 12, width: "100%",
-                background: panelOpen ? "rgba(255,255,255,0.1)" : "transparent",
-                border: "none", cursor: "pointer", textAlign: "left",
-                color: panelOpen ? "#FFFFFF" : "#7A7A7A",
-                fontSize: 13, fontWeight: panelOpen ? 500 : 400,
-                transition: "all 0.15s",
-              }}>
-              <Bot size={16} />
-              AI Assistant
-            </button>
             <button onClick={() => navigate("/traces")}
               style={{
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "10px 12px", borderRadius: 12, width: "100%",
                 background: "transparent", border: "none", cursor: "pointer", textAlign: "left",
-                color: "#7A7A7A", fontSize: 13, fontWeight: 400, transition: "all 0.15s",
+                color: "var(--text-secondary)", fontSize: 13, fontWeight: 400, transition: "all 0.15s",
               }}>
               <Activity size={16} />
               Pipeline Traces
@@ -134,7 +130,7 @@ export function Sidebar() {
                   {connectors.connected}/{connectors.total} sources synced
                 </span>
               </div>
-              <div style={{ color: "#7A7A7A", fontSize: 11 }}>
+              <div style={{ color: "var(--text-secondary)", fontSize: 11 }}>
                 {connectors.lastSync
                   ? `Last sync: ${new Date(connectors.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ago`
                   : "No sync data"}

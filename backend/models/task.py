@@ -69,11 +69,43 @@ class DailyPlan(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
+    include_context: bool = True
+
+
+class ReferencedTask(BaseModel):
+    id: str
+    title: str
+    source: str
+
+
+class ContextUsed(BaseModel):
+    task_count: int = 0
+    alert_count: int = 0
+    hidden_task_count: int = 0
+    timestamp: str = ""
 
 
 class ChatResponse(BaseModel):
     answer: str
     referenced_task_ids: list[str] = []
+    referenced_tasks: list[ReferencedTask] = []
+    suggestions: list[str] = []
+    context_used: ContextUsed = ContextUsed()
+    status: str = "success"
+
+
+class ChatHistoryItem(BaseModel):
+    id: str
+    role: str
+    content: str
+    timestamp: str
+    referenced_tasks: list[ReferencedTask] = []
+
+
+class ChatHistoryResponse(BaseModel):
+    history: list[ChatHistoryItem]
+    count: int
 
 
 class InjectRequest(BaseModel):

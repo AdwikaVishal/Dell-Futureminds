@@ -33,39 +33,39 @@ export function Screen6() {
       <main style={{ flex: 1, overflow: "auto", padding: "28px" }}>
         <div style={{ marginBottom: 24 }}>
           <h2 style={{ margin: 0 }}>Pipeline Traces</h2>
-          <p style={{ color: "#7A7A7A", fontSize: 13, marginTop: 4 }}>
+          <p style={{ color: "var(--text-secondary)", fontSize: 13, marginTop: 4 }}>
             {loading ? "Loading..." : `${traces.length} trace${traces.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
         {loading && (
-          <p style={{ color: "#7A7A7A", fontSize: 13 }}>Loading traces...</p>
+          <p style={{ color: "var(--text-secondary)", fontSize: 13 }}>Loading traces...</p>
         )}
 
         {!loading && traces.length === 0 && (
-          <div style={{ textAlign: "center", color: "#7A7A7A", fontSize: 13, padding: 60 }}>
+          <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 13, padding: 60 }}>
             <p>No traces available. Run a pipeline to collect step timing data.</p>
           </div>
         )}
 
         {!loading && traces.length > 0 && (
-          <div style={{ border: "1px solid #D9D9D9", overflow: "hidden", background: "#FFFFFF" }}>
+          <div style={{ border: "1px solid #D9D9D9", overflow: "hidden", background: "var(--bg-elevated)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "#F8F8F6" }}>
-                  <th style={{ padding: "10px 14px", textAlign: "left", color: "#7A7A7A", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Step</th>
-                  <th style={{ padding: "10px 14px", textAlign: "right", color: "#7A7A7A", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Latency (ms)</th>
-                  <th style={{ padding: "10px 14px", textAlign: "right", color: "#7A7A7A", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Tokens</th>
-                  <th style={{ padding: "10px 14px", textAlign: "center", color: "#7A7A7A", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Status</th>
-                  <th style={{ padding: "10px 14px", textAlign: "right", color: "#7A7A7A", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Time</th>
+                  <th style={{ padding: "10px 14px", textAlign: "left", color: "var(--text-secondary)", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Step</th>
+                  <th style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-secondary)", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Latency (ms)</th>
+                  <th style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-secondary)", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Tokens</th>
+                  <th style={{ padding: "10px 14px", textAlign: "center", color: "var(--text-secondary)", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Status</th>
+                  <th style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-secondary)", fontWeight: 500, borderBottom: "1px solid #D9D9D9", fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>Time</th>
                 </tr>
               </thead>
               <tbody>
                 {traces.map((trace, idx) => (
                   <tr key={trace.id} style={{ borderBottom: idx < traces.length - 1 ? "1px solid #D9D9D9" : "none" }}>
-                    <td style={{ padding: "10px 14px", color: "#111111", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{trace.step_name}</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: "#111111", fontFamily: "'IBM Plex Mono', monospace" }}>{trace.duration_ms.toFixed(1)}</td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: trace.tokens_used > 0 ? "#111111" : "#7A7A7A", fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <td style={{ padding: "10px 14px", color: "var(--text-primary)", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{trace.step_name}</td>
+                    <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-primary)", fontFamily: "'IBM Plex Mono', monospace" }}>{trace.duration_ms.toFixed(1)}</td>
+                    <td style={{ padding: "10px 14px", textAlign: "right", color: trace.tokens_used > 0 ? "var(--text-primary)" : "var(--text-secondary)", fontFamily: "'IBM Plex Mono', monospace" }}>
                       {trace.tokens_used > 0 ? trace.tokens_used : "—"}
                     </td>
                     <td style={{ padding: "10px 14px", textAlign: "center" }}>
@@ -80,7 +80,7 @@ export function Screen6() {
                         {trace.status}
                       </span>
                     </td>
-                    <td style={{ padding: "10px 14px", textAlign: "right", color: "#7A7A7A", fontSize: 11, whiteSpace: "nowrap", fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <td style={{ padding: "10px 14px", textAlign: "right", color: "var(--text-secondary)", fontSize: 11, whiteSpace: "nowrap", fontFamily: "'IBM Plex Mono', monospace" }}>
                       {new Date(trace.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                     </td>
                   </tr>
