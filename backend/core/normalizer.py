@@ -16,6 +16,8 @@ _TEAM_MAP: dict[str, str] = {
     "mia": "backend-team",
     "mike": "devops-team",
     "sarah": "qa-team",
+    "adwika": "backend-team",
+    "saatvika": "frontend-team",
 }
 
 
@@ -55,6 +57,8 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             raw_text=item.get("raw_text", ""),
             assignee=item.get("owner"),
             team=_infer_team(item.get("owner")),
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     for item in defects:
@@ -73,6 +77,8 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             raw_text=item.get("raw_text", ""),
             assignee=item.get("owner"),
             team=_infer_team(item.get("owner")),
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     for item in emails:
@@ -91,6 +97,8 @@ def normalize_all(jira: list[dict], defects: list[dict], emails: list[dict]) -> 
             raw_text=item.get("body", ""),
             assignee=None,
             team=None,
+            vp_escalation=item.get("vp_escalation", False),
+            customer_facing=item.get("customer_facing", False),
         ))
 
     return tasks
@@ -112,5 +120,7 @@ def normalize_connector_payload(raw: list[dict[str, Any]], source_type: str) -> 
             "dependencies": item.get("dependencies", []),
             "blocks": item.get("blocks", []),
             "raw_text": item.get("raw_text", ""),
+            "vp_escalation": item.get("vp_escalation", False),
+            "customer_facing": item.get("customer_facing", False),
         })
     return normalized

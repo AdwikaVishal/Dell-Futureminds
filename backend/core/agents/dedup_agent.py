@@ -19,7 +19,7 @@ class DedupAgent(BaseAgent):
                      len(normalized_tasks), len(extracted_tasks), len(merged))
 
         try:
-            deduped = deduplicate(merged)
+            deduped = await deduplicate(merged)
             logger.info("After dedup: %d tasks", len(deduped))
         except Exception as e:
             logger.error("Deduplication failed: %s — using merged list", e)

@@ -74,7 +74,7 @@ export function Screen2() {
                     <StatusPill status={task.status || "open"} />
                     {(task.merged_sources?.length > 0 || task.merged_from?.length > 0) && (
                       <span style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(143,203,168,0.08)", color: SAGE, fontSize: 11, padding: "2px 8px", borderRadius: 20, border: `1px solid rgba(143,203,168,0.18)`, whiteSpace: "nowrap" }}>
-                        <SparkleIcon size={10} /> merged from sources
+                        <SparkleIcon size={10} /> merged from {[...new Set(task.merged_sources ?? [])].join(", ") || task.source_type}
                       </span>
                     )}
                   </div>

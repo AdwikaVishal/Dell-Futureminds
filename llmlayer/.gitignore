@@ -1,3 +1,0 @@
-.env
-__pycache__/
-#so that API key is not exposed to the world

@@ -1,14 +1,42 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from core.llm_client import call_llm
-from core.prompts import build_daily_plan_prompt, build_prioritization_prompt, build_reprioritize_prompt
+from core.prompts import build_daily_plan_prompt, build_reprioritize_prompt
+from core.scoring_engine import DeterministicScoringEngine
 from core.tracer import trace
-from core.state import get_user_preference_boosts
+from core.memory import memory_system
+from core.dependency_analyzer import DependencyAnalyzer
 from models.task import Task, DailyPlan, RankedTask, Alert
+
+logger = logging.getLogger(__name__)
+
+_SELF_OWNER_TOKENS = {"you", "me", "i", "myself", "the engineer", "inbox owner"}
+_TEAM_TOKENS = {"team", "dev", "frontend", "backend", "ai", "qa", "security", "oncall", "design"}
+
+
+def _is_my_task(task: Task) -> bool:
+    if task.owner is None:
+        return True
+    owner_lower = task.owner.strip().lower()
+    if owner_lower in _SELF_OWNER_TOKENS:
+        return True
+    owner_parts = owner_lower.replace("@", " ").replace(".", " ").replace("-", " ").split()
+    for part in owner_parts:
+        if part in _TEAM_TOKENS:
+            return True
+    return False
+
+
+def split_by_owner(tasks: list[Task]) -> tuple[list[Task], list[Task]]:
+    mine, delegated = [], []
+    for t in tasks:
+        (mine if _is_my_task(t) else delegated).append(t)
+    return mine, delegated
 
 
 def _task_to_scoring_dict(task: Task) -> dict[str, Any]:
@@ -29,32 +57,11 @@ def _task_to_scoring_dict(task: Task) -> dict[str, Any]:
     }
 
 
-def _apply_scores(tasks: list[Task], scored_items: list[dict[str, Any]]) -> list[RankedTask]:
-    score_map: dict[str, tuple[float, str, dict]] = {}
-    for item in scored_items:
-        task_id = str(item.get("id", ""))
-        score = float(item.get("score", 0))
-        rationale = str(item.get("rationale", ""))
-        breakdown = item.get("score_breakdown", {})
-        score_map[task_id] = (score, rationale, breakdown)
-        
+def _apply_preference_boosts(ranked: list[RankedTask]) -> list[RankedTask]:
+    boosts = memory_system.get_preference_boosts()
+    if not boosts:
+        return ranked
 
-    result: list[RankedTask] = []
-    for task in tasks:
-        score, rationale, breakdown = score_map.get(task.id, (0.0, "Score not computed.", {}))
-        result.append(RankedTask(
-            **task.model_dump(exclude={'rank', 'score', 'rationale', 'score_breakdown'}),
-            score=score,
-            rationale=rationale,
-            score_breakdown=breakdown,
-        ))
-
-    result.sort(key=lambda t: t.score, reverse=True)
-    return result
-
-
-def _match_preference(title: str, preference: str) -> bool:
-    title_lower = title.lower()
     keyword_map = {
         "prefer_security": ["security", "audit", "token", "vulnerability", "encrypt"],
         "prefer_ui_bugs": ["ui", "dashboard", "safari", "render", "chart", "dark mode"],
@@ -63,19 +70,14 @@ def _match_preference(title: str, preference: str) -> bool:
         "prefer_integrations": ["github", "jira", "slack", "connector", "sync"],
         "prefer_refactors": ["refactor", "cleanup", "docs", "documentation", "test"],
     }
-    keywords = keyword_map.get(preference, [])
-    return any(kw in title_lower for kw in keywords)
-
-
-def _apply_preference_boosts(ranked: list[RankedTask]) -> list[RankedTask]:
-    boosts = get_user_preference_boosts()
-    if not boosts:
-        return ranked
 
     for rt in ranked:
+        title_lower = rt.title.lower()
         for pref, multiplier in boosts.items():
-            if _match_preference(rt.title, pref):
-                rt.score = round(rt.score * multiplier, 1)
+            if pref in keyword_map:
+                keywords = keyword_map[pref]
+                if any(kw in title_lower for kw in keywords):
+                    rt.score = round(rt.score * multiplier, 1)
     ranked.sort(key=lambda t: t.score, reverse=True)
     return ranked
 
@@ -85,24 +87,16 @@ async def prioritize(tasks: list[Task]) -> list[RankedTask]:
     if not tasks:
         return []
 
-    task_dicts = [_task_to_scoring_dict(t) for t in tasks]
-    system, user_prompt = build_prioritization_prompt(task_dicts)
+    ranked = DeterministicScoringEngine.score_tasks(tasks)
 
-    response = await call_llm(
-        prompt=user_prompt,
-        system=system,
-        json_mode=True,
-        temperature=0.1,
-        max_output_tokens=4096,
-    )
-
-    scored_items = response.parsed_json if isinstance(response.parsed_json, list) else []
-
-    if not scored_items:
-        return [RankedTask(**t.model_dump(exclude={'rank', 'score', 'rationale'}), score=0.0, rationale="Scoring unavailable.") for t in tasks]
-
-    ranked = _apply_scores(tasks, scored_items)
     ranked = _apply_preference_boosts(ranked)
+
+    memory_system.infer_preferences_from_tasks(tasks)
+
+    leverage = DependencyAnalyzer.find_highest_leverage_tasks(tasks)
+    if leverage:
+        logger.info("Highest leverage tasks: %s", [l["task_id"] for l in leverage])
+
     return ranked
 
 
@@ -116,65 +110,58 @@ async def get_daily_plan(
     task_dicts = [_task_to_scoring_dict(t) | {"score": t.score, "rationale": t.rationale} for t in ranked_tasks]
     system, user_prompt = build_daily_plan_prompt(task_dicts, active_alerts)
 
-    response = await call_llm(
-        prompt=user_prompt,
-        system=system,
-        json_mode=False,
-        temperature=0.3,
-        max_output_tokens=2048,
-    )
-    return response.text.strip()
+    try:
+        response = await call_llm(
+            prompt=user_prompt,
+            system=system,
+            json_mode=False,
+            temperature=0.3,
+            max_output_tokens=2048,
+        )
+        return response.text.strip()
+    except Exception:
+        return _fallback_daily_plan(ranked_tasks)
+
+
+def _fallback_daily_plan(ranked_tasks: list[RankedTask]) -> str:
+    lines = ["## Top 3 for Today\n"]
+    for t in ranked_tasks[:3]:
+        lines.append(f"- **{t.title}** (score: {t.score:.1f}) — {t.rationale}")
+    lines.append("\n## Do Next\n")
+    for t in ranked_tasks[3:7]:
+        lines.append(f"- {t.title} (score: {t.score:.1f})")
+    lines.append("\n## Defer to Tomorrow\n")
+    for t in ranked_tasks[7:]:
+        lines.append(f"- {t.title}")
+    return "\n".join(lines)
 
 
 async def reprioritize(
     current_ranked_tasks: list[RankedTask],
     new_task: Task,
 ) -> tuple[list[RankedTask], str]:
-    current_dicts = [_task_to_scoring_dict(t) | {"score": t.score, "rationale": t.rationale} for t in current_ranked_tasks]
-    new_task_dict = _task_to_scoring_dict(new_task)
+    all_tasks = list(current_ranked_tasks) + [new_task]
+    all_ranked = DeterministicScoringEngine.score_tasks(all_tasks)
 
-    system, user_prompt = build_reprioritize_prompt(current_dicts, new_task_dict)
+    injected_rank = next((i for i, t in enumerate(all_ranked) if t.id == new_task.id), -1)
+    if injected_rank == 0:
+        change_summary = f"New task '{new_task.title}' placed at #1 (score: {all_ranked[0].score:.1f})"
+    elif injected_rank <= 3:
+        change_summary = f"New task '{new_task.title}' entered top 3 at position #{injected_rank + 1}"
+    else:
+        change_summary = f"New task '{new_task.title}' injected at position #{injected_rank + 1}"
 
-    try:
-        response = await call_llm(
-            prompt=user_prompt,
-            system=system,
-            json_mode=True,
-            temperature=0.1,
-            max_output_tokens=4096,
-        )
-    except Exception:
-        new_task_scored = RankedTask(**new_task.model_dump(exclude={'rank', 'score', 'rationale'}), score=99.0, rationale="New high-priority task injected.")
-        return [new_task_scored] + current_ranked_tasks, "New task injected at top (LLM unavailable)."
-
-    if not response.parsed_json or not isinstance(response.parsed_json, dict):
-        new_task_scored = RankedTask(**new_task.model_dump(exclude={'rank', 'score', 'rationale'}), score=99.0, rationale="New high-priority task injected.")
-        return [new_task_scored] + current_ranked_tasks, "New task injected at top (scoring fallback)."
-
-    new_rank_raw = response.parsed_json.get("new_rank", [])
-    change_summary = response.parsed_json.get("change_summary", "Re-prioritization complete.")
-
-    all_tasks_by_id = {t.id: t for t in current_ranked_tasks}
-    all_tasks_by_id[new_task.id] = new_task
-
-    updated_tasks: list[RankedTask] = []
-    for item in new_rank_raw:
-        task_id = item.get("id")
-        original = all_tasks_by_id.get(task_id)
-        if original:
-            updated_tasks.append(RankedTask(**original.model_dump(exclude={'rank', 'score', 'rationale'}), score=float(item.get("score", 0)), rationale=str(item.get("rationale", ""))))
-
-    updated_tasks.sort(key=lambda t: t.score, reverse=True)
-    return updated_tasks, change_summary
+    return all_ranked, change_summary
 
 
 def _build_ranked_list(tasks: list[RankedTask]) -> list[RankedTask]:
     return [
         RankedTask(
-            **t.model_dump(exclude={'rank', 'score', 'rationale'}),
+            **t.model_dump(exclude={'rank', 'score', 'rationale', 'score_breakdown'}),
             rank=i + 1,
             score=t.score or 0.0,
             rationale=t.rationale or "",
+            score_breakdown=t.score_breakdown or {},
         )
         for i, t in enumerate(tasks)
     ]

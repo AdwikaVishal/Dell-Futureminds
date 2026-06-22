@@ -36,7 +36,7 @@
     "id": "email_004",
     "subject": "URGENT: Production incident  login service down",
     "body_preview": "Users cannot log in. The auth service is returning 503. Need immediate investigation.",
-    "body_content": "Production incident reported at 10:45 UTC. The login service is down, returning 503 errors. All hands on deck â€” this is blocking all users. Root cause is unknown, possibly database connection pool exhaustion.\n\n-Oncall",
+    "body_content": "Production incident reported at 10:45 UTC. The login service is down, returning 503 errors. All hands on deck — this is blocking all users. Root cause is unknown, possibly database connection pool exhaustion.\n\n-Oncall",
     "from": "oncall@taskpilot.ai",
     "receivedDateTime": "2026-06-18T10:50:00Z",
     "isRead": false,
@@ -80,21 +80,15 @@
     "id": "email_008",
     "subject": "VP escalation  customer login issue (JIRA-1234)",
     "body_preview": "The VP is asking about the login bug. Need an update by noon.",
-    "body_content": "Team,\n\nThe VP just asked about the login issue that was reported yesterday. This is JIRA-1234. She wants a status update and ETA on the fix by noon today. Please prioritize this â€” it's a P1 now due to customer escalation.\n\nAlso, Adwika, can you prepare a summary of what went wrong for the post-mortem?\n\nThanks,\nSarah (PM)",
+    "body_content": "Team,\n\nThe VP just asked about the login issue that was reported yesterday. This is JIRA-1234. She wants a status update and ETA on the fix by noon today. Please prioritize this — it's a P1 now due to customer escalation.\n\nAlso, Adwika, can you prepare a summary of what went wrong for the post-mortem?\n\nThanks,\nSarah (PM)",
     "from": "sarah.pm@taskpilot.ai",
     "receivedDateTime": "2026-06-19T09:30:00Z",
+    "subject": "VP escalation — customer threatening churn over upload failures",
+    "body_preview": "Just got off a call with our VP of Sales. A top enterprise account is furious about random upload failures and is threatening to churn before renewal.",
+    "body_content": "Hi team,\n\nJust got off a call with our VP of Sales. One of our largest enterprise accounts is furious about random upload failures (tracked as JIRA-1234) and is threatening to churn before their renewal next month. This needs to be the top priority this week — can we get an ETA today?\n\n-Priya (Sales Engineering)",
+    "from": "priya.saleseng@taskpilot.ai",
+    "receivedDateTime": "2026-06-19T13:45:00Z",
     "isRead": false,
-    "priority": "P1",
-    "deadline": "2026-06-19T12:00:00Z"
-  },
-  {
-    "id": "email_009",
-    "subject": "RE: Security audit findings",
-    "body_preview": "The Q2 security audit identified 3 critical vulnerabilities. Fixes required by next sprint.",
-    "body_content": "Hi team,\n\nThe Q2 security audit report is in. There are 3 critical vulnerabilities that need attention:\n1. API token exposure in logs (Saatvika, please rotate all tokens)\n2. Unencrypted database backups (Adwika, enable encryption)\n3. Missing rate limiting on auth endpoints\n\nThese must be fixed before the next sprint release.\n\n-Security Team",
-    "from": "security@taskpilot.ai",
-    "receivedDateTime": "2026-06-17T13:00:00Z",
-    "isRead": true,
     "priority": "P0",
     "deadline": "2026-06-22T23:59:00Z"
   },
@@ -130,5 +124,6 @@
     "isRead": false,
     "priority": "P3",
     "deadline": "2026-06-20T13:00:00Z"
+    "deadline": "2026-06-22T17:00:00Z"
   }
 ]

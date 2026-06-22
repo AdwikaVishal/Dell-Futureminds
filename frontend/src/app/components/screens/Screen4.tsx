@@ -5,8 +5,8 @@ import { Sidebar } from "../shared/Sidebar";
 import { Card } from "../shared/Card";
 import { SourceBadge } from "../shared/SourceBadge";
 import { SparkleIcon } from "../shared/SparkleIcon";
-import { AIRationale } from "../shared/AIRationale";
-import { getSources, getTasks, SourcesResponse, Task, WebSocketEvent } from "../../api/taskpilot";
+import { ExtractionVisualization } from "../shared/ExtractionVisualization";
+import { getSources, getRecentExtractions, SourcesResponse, ExtractionItem, WebSocketEvent } from "../../api/taskpilot";
 import { useWebSocket } from "../../hooks/useWebSocket";
 
 const TEXT_PRIMARY = "#EDF3EF";
@@ -17,20 +17,28 @@ const BORDER = "#232B26";
 
 export function Screen4() {
   const [sources, setSources] = useState<SourcesResponse | null>(null);
+  const [extractions, setExtractions] = useState<ExtractionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const handleWsEvent = useCallback((event: WebSocketEvent) => {
     if (event.event === "tasks_updated" || event.event === "plan_updated") {
       getSources().then(setSources).catch(() => {});
+      getRecentExtractions().then(r => setExtractions(r.extractions)).catch(() => {});
     }
   }, []);
 
   useWebSocket(handleWsEvent);
 
   useEffect(() => {
-    getSources()
-      .then(setSources)
-      .catch(() => setSources(null))
+    Promise.all([
+      getSources(),
+      getRecentExtractions(),
+    ])
+      .then(([srcRes, extRes]) => {
+        setSources(srcRes);
+        setExtractions(extRes.extractions);
+      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -53,6 +61,11 @@ export function Screen4() {
             <SparkleIcon size={14} />
             <span style={{ color: SAGE, fontSize: 13 }}>
               Live data from {displaySources.filter(s => s.status === "Synced").length}/{displaySources.length} connected sources
+              {extractions.length > 0 && (
+                <span style={{ color: TEXT_MUTED, marginLeft: 4 }}>
+                  &middot; <strong style={{ color: SAGE }}>{extractions.length}</strong> hidden action items found
+                </span>
+              )}
             </span>
           </div>
 
@@ -90,6 +103,22 @@ export function Screen4() {
               <div style={{ color: TEXT_MUTED, fontSize: 13, marginBottom: 16 }}>
                 {sources?.total_tasks ?? 0} total tasks across all sources
               </div>
+
+              {extractions.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {extractions.slice(0, 10).map((item) => (
+                    <ExtractionVisualization key={item.task_id} item={item} />
+                  ))}
+                </div>
+              )}
+
+              {extractions.length === 0 && !loading && (
+                <Card style={{ textAlign: "center", padding: 40 }}>
+                  <p style={{ color: TEXT_MUTED, fontSize: 13, margin: 0 }}>
+                    No extractions available yet. Sync your sources to generate tasks.
+                  </p>
+                </Card>
+              )}
             </>
           )}
         </main>
