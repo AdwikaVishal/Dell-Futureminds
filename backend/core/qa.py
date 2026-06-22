@@ -21,7 +21,7 @@ def _build_task_context(tasks: Sequence[Task]) -> list[dict[str, Any]]:
 
 
 def _trim_history(history: list[dict]) -> list[dict]:
-    return history[-(MAX_HISTORY_TURNS * 2):]
+    return history[-(MAX_HISTORY_TURNS * 2) :]
 
 
 async def answer_question(
@@ -44,7 +44,9 @@ async def answer_question(
 
     trimmed_history = _trim_history(clean_history)
     task_context = _build_task_context(tasks)
-    system_prompt, user_prompt = build_qa_prompt(task_context, question, trimmed_history)
+    system_prompt, user_prompt = build_qa_prompt(
+        task_context, question, trimmed_history
+    )
 
     try:
         response: LLMResponse = await call_llm(

@@ -12,8 +12,12 @@ class IngestionAgent(BaseAgent):
 
     async def process(self, context: dict[str, Any]) -> dict[str, Any]:
         result: dict[str, Any] = {
-            "jira": [], "defects": [], "emails": [],
-            "transcript": [], "github": [], "slack": [],
+            "jira": [],
+            "defects": [],
+            "emails": [],
+            "transcript": [],
+            "github": [],
+            "slack": [],
         }
 
         for source_type, connector in connector_registry.items():
@@ -22,13 +26,20 @@ class IngestionAgent(BaseAgent):
                 raw = await connector.fetch_tasks()
                 if raw:
                     result[source_type] = raw
-                    connector.last_sync = __import__("datetime").datetime.now(
-                        __import__("datetime").timezone.utc
-                    ).isoformat()
+                    connector.last_sync = (
+                        __import__("datetime")
+                        .datetime.now(__import__("datetime").timezone.utc)
+                        .isoformat()
+                    )
                 else:
-                    logger.info("Connector %s returned 0 tasks (live API up, no data)", source_type)
+                    logger.info(
+                        "Connector %s returned 0 tasks (live API up, no data)",
+                        source_type,
+                    )
             except Exception as e:
-                logger.warning("Connector %s failed: %s — skipping (live API only)", source_type, e)
+                logger.warning(
+                    "Connector %s failed: %s — skipping (live API only)", source_type, e
+                )
                 connector.error = str(e)
 
         total_count = sum(len(v) for v in result.values())
@@ -41,11 +52,13 @@ class IngestionAgent(BaseAgent):
 
         connector_statuses = []
         for source_type, connector in connector_registry.items():
-            status = "connected" if connector.connected else f"error: {connector.error or 'unknown'}"
+            status = (
+                "connected"
+                if connector.connected
+                else f"error: {connector.error or 'unknown'}"
+            )
             connector_statuses.append(f"{source_type}={status}")
 
-        reflection["observations"] = [
-            f"Connectors: {', '.join(connector_statuses)}"
-        ]
+        reflection["observations"] = [f"Connectors: {', '.join(connector_statuses)}"]
 
         return reflection

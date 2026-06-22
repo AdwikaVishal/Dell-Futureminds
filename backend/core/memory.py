@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class MemorySystem:
-
     @staticmethod
-    def record_preference(key: str, value: str, source: str = "inferred", confidence: float = 0.5):
+    def record_preference(
+        key: str, value: str, source: str = "inferred", confidence: float = 0.5
+    ):
         _ensure_db()
         conn = _get_db()
         now = datetime.now(timezone.utc).isoformat()
@@ -45,13 +46,20 @@ class MemorySystem:
     def get_all_preferences() -> dict[str, str]:
         _ensure_db()
         conn = _get_db()
-        rows = conn.execute("SELECT preference_key, preference_value FROM user_preferences").fetchall()
+        rows = conn.execute(
+            "SELECT preference_key, preference_value FROM user_preferences"
+        ).fetchall()
         conn.close()
         return {r["preference_key"]: r["preference_value"] for r in rows}
 
     @staticmethod
-    def record_completion(task_id: str, task_title: str, source_type: str, priority: str | None,
-                          completed_at: str | None = None):
+    def record_completion(
+        task_id: str,
+        task_title: str,
+        source_type: str,
+        priority: str | None,
+        completed_at: str | None = None,
+    ):
         _ensure_db()
         conn = _get_db()
         now = completed_at or datetime.now(timezone.utc).isoformat()
@@ -80,11 +88,13 @@ class MemorySystem:
 
         patterns = []
         for r in rows:
-            patterns.append({
-                "hour": r["completion_hour"],
-                "day": r["day_of_week"],
-                "count": r["count"],
-            })
+            patterns.append(
+                {
+                    "hour": r["completion_hour"],
+                    "day": r["day_of_week"],
+                    "count": r["count"],
+                }
+            )
         return {"peak_completion_patterns": patterns}
 
     @staticmethod
@@ -104,13 +114,21 @@ class MemorySystem:
             if action == "upvote":
                 existing = MemorySystem.get_preference(preference)
                 current = float(existing) if existing else 1.0
-                MemorySystem.record_preference(preference, str(round(current * 1.05, 3)),
-                                               source="explicit", confidence=0.7)
+                MemorySystem.record_preference(
+                    preference,
+                    str(round(current * 1.05, 3)),
+                    source="explicit",
+                    confidence=0.7,
+                )
             elif action == "downvote":
                 existing = MemorySystem.get_preference(preference)
                 current = float(existing) if existing else 1.0
-                MemorySystem.record_preference(preference, str(round(current * 0.95, 3)),
-                                               source="explicit", confidence=0.7)
+                MemorySystem.record_preference(
+                    preference,
+                    str(round(current * 0.95, 3)),
+                    source="explicit",
+                    confidence=0.7,
+                )
 
     @staticmethod
     def infer_preferences_from_tasks(tasks: list) -> None:
@@ -126,20 +144,27 @@ class MemorySystem:
 
         if source_counts:
             top_source = max(source_counts, key=source_counts.get)
-            MemorySystem.record_preference("preferred_source", top_source,
-                                           source="inferred", confidence=0.4)
+            MemorySystem.record_preference(
+                "preferred_source", top_source, source="inferred", confidence=0.4
+            )
         if priority_counts:
             top_priority = max(priority_counts, key=priority_counts.get)
-            MemorySystem.record_preference("common_priority", top_priority,
-                                           source="inferred", confidence=0.3)
+            MemorySystem.record_preference(
+                "common_priority", top_priority, source="inferred", confidence=0.3
+            )
 
     @staticmethod
-    def detect_deferred_tasks(tasks: list, threshold_runs: int = 3) -> list[dict[str, Any]]:
+    def detect_deferred_tasks(
+        tasks: list, threshold_runs: int = 3
+    ) -> list[dict[str, Any]]:
         _ensure_db()
         conn = _get_db()
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT tasks_json FROM runs ORDER BY id DESC LIMIT ?
-        """, (threshold_runs,)).fetchall()
+        """,
+            (threshold_runs,),
+        ).fetchall()
         conn.close()
 
         if len(rows) < threshold_runs:
@@ -156,20 +181,25 @@ class MemorySystem:
                 if tid:
                     task_appearances[tid] = task_appearances.get(tid, 0) + 1
                     if tid not in task_details:
-                        task_details[tid] = {"title": t.get("title", ""), "priority": t.get("priority"),
-                                             "source_type": t.get("source_type")}
+                        task_details[tid] = {
+                            "title": t.get("title", ""),
+                            "priority": t.get("priority"),
+                            "source_type": t.get("source_type"),
+                        }
 
         for tid, count in task_appearances.items():
             if count == threshold_runs:
                 details = task_details.get(tid, {})
-                deferred.append({
-                    "task_id": tid,
-                    "title": details.get("title", ""),
-                    "priority": details.get("priority"),
-                    "source_type": details.get("source_type"),
-                    "appeared_in_last_n_runs": count,
-                    "reason": "Task has persisted across multiple pipeline runs without completion",
-                })
+                deferred.append(
+                    {
+                        "task_id": tid,
+                        "title": details.get("title", ""),
+                        "priority": details.get("priority"),
+                        "source_type": details.get("source_type"),
+                        "appeared_in_last_n_runs": count,
+                        "reason": "Task has persisted across multiple pipeline runs without completion",
+                    }
+                )
 
         return deferred
 

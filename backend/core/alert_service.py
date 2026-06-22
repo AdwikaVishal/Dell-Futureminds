@@ -2,8 +2,6 @@ import asyncio
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any
 
 from core.alert_engine import check_alerts
 from core.state import store
@@ -14,7 +12,10 @@ logger = logging.getLogger(__name__)
 
 def _alert_signature(alerts: list[dict]) -> str:
     raw = json.dumps(
-        sorted((a.get("severity", ""), a.get("message", ""), a.get("task_id", "")) for a in alerts),
+        sorted(
+            (a.get("severity", ""), a.get("message", ""), a.get("task_id", ""))
+            for a in alerts
+        ),
         sort_keys=True,
     )
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
@@ -67,7 +68,9 @@ class AlertService:
             try:
                 alerts = self.evaluate()
                 if alerts and self.has_new_alerts(alerts):
-                    logger.info("New alert state detected (%d active alerts)", len(alerts))
+                    logger.info(
+                        "New alert state detected (%d active alerts)", len(alerts)
+                    )
                     critical = [a for a in alerts if a.get("severity") == "critical"]
                     if critical:
                         logger.warning("Broadcasting %d critical alerts", len(critical))

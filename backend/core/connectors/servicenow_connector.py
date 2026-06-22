@@ -29,14 +29,20 @@ class ServiceNowConnector(SourceConnector):
 
     async def connect(self) -> bool:
         if not self._url or not self._user or not self._password:
-            logger.warning("ServiceNow credentials not configured (SERVICENOW_URL, USER, PASSWORD)")
+            logger.warning(
+                "ServiceNow credentials not configured (SERVICENOW_URL, USER, PASSWORD)"
+            )
             self.connected = False
             self.error = "Missing ServiceNow credentials"
             return False
         try:
             auth = httpx.BasicAuth(self._user, self._password)
-            self._client = httpx.AsyncClient(base_url=self._url, auth=auth, timeout=30.0)
-            resp = await self._client.get("/api/now/table/incident", params={"sysparm_limit": 1})
+            self._client = httpx.AsyncClient(
+                base_url=self._url, auth=auth, timeout=30.0
+            )
+            resp = await self._client.get(
+                "/api/now/table/incident", params={"sysparm_limit": 1}
+            )
             resp.raise_for_status()
             self.connected = True
             self.error = None
@@ -66,7 +72,9 @@ class ServiceNowConnector(SourceConnector):
                     "sysparm_fields": "sys_id,short_description,description,priority,assigned_to,state,sys_updated_on",
                 }
                 if since:
-                    params["sysparm_query"] = f"sys_updated_on>=javascript:gs.dateGenerate('{since}','start')"
+                    params["sysparm_query"] = (
+                        f"sys_updated_on>=javascript:gs.dateGenerate('{since}','start')"
+                    )
 
                 resp = await self._client.get("/api/now/table/incident", params=params)
                 resp.raise_for_status()
@@ -88,44 +96,64 @@ class ServiceNowConnector(SourceConnector):
             self.error = str(e)
             return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching ServiceNow incidents: %s — falling back to simulated data", e)
+            logger.error(
+                "Error fetching ServiceNow incidents: %s — falling back to simulated data",
+                e,
+            )
             self.error = str(e)
             return self._load_simulated()
 
     def _load_simulated(self) -> list[dict[str, Any]]:
         import json
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "defects.json"
+
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "servicenow_defects.json"
         if not path.exists():
-            logger.warning("Simulated defect data not found at %s", path)
+            logger.warning("Simulated ServiceNow defect data not found at %s", path)
             return []
         try:
             with open(path) as f:
                 raw = json.load(f)
             normalized = []
             for d in raw:
-                status = d.get("status", "open")
-                status = status.replace("-", "_")  # normalize "in-progress" -> "in_progress"
-                normalized.append({
-                    "id": d["id"],
-                    "title": d["title"],
-                    "description": d.get("description", ""),
-                    "source": d["id"],
-                    "source_type": "defect",
-                    "priority": d.get("priority", "P2"),
-                    "deadline": d.get("deadline"),
-                    "owner": d.get("owner", ""),
-                    "status": status,
-                    "dependencies": [],
-                    "blocks": [],
-                    "raw_text": d.get("raw_text", ""),
-                    "category": "incident",
-                    "sla_status": "active",
-                })
-            logger.info("Loaded %d simulated defects", len(normalized))
+                status = d.get("state", "New")
+                status = status.lower().replace(" ", "_")
+                # Map ServiceNow state values to our internal format
+                state_map = {"new": "open", "in_progress": "in_progress", "pending": "blocked", "resolved": "done", "closed": "done"}
+                internal_status = state_map.get(status, "open")
+                priority_map = {"P1": "P0", "P2": "P1", "P3": "P2", "P4": "P3"}
+                priority = d.get("severity", "P3")
+                internal_priority = priority_map.get(priority, priority)
+                normalized.append(
+                    {
+                        "id": d.get("incidentId", d["id"]),
+                        "title": d["title"],
+                        "description": d.get("description", ""),
+                        "source": d.get("incidentId", d["id"]),
+                        "source_type": "defect",
+                        "priority": internal_priority,
+                        "deadline": d.get("slaDeadline"),
+                        "owner": d.get("assignedTo", ""),
+                        "status": internal_status,
+                        "dependencies": [],
+                        "blocks": [],
+                        "raw_text": d.get("description", ""),
+                        "category": "incident",
+                        "sla_status": d.get("slaStatus", "active"),
+                        "escalation_flag": d.get("escalationFlag", False),
+                        "escalated_by": d.get("escalatedBy"),
+                        "severity": priority,
+                        "affected_system": d.get("affectedSystem", ""),
+                        "affected_customers": d.get("affectedCustomers", ""),
+                        "related_jira": d.get("relatedJiraId"),
+                        "vp_escalation": d.get("escalationFlag", False) and d.get("escalatedBy") == "VP of Engineering",
+                        "customer_facing": d.get("affectedCustomers") in ("enterprise tier", "all"),
+                    }
+                )
+            logger.info("Loaded %d simulated ServiceNow defects", len(normalized))
             return normalized
         except Exception as e:
-            logger.error("Failed to load simulated defects: %s", e)
+            logger.error("Failed to load simulated ServiceNow defects: %s", e)
             return []
 
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -148,29 +176,33 @@ class ServiceNowConnector(SourceConnector):
 
             description = record.get("description", "") or ""
 
-            normalized.append({
-                "id": f"SN-{short_id}",
-                "title": record.get("short_description", ""),
-                "description": description,
-                "source": f"SN-{short_id}",
-                "source_type": "servicenow",
-                "priority": priority,
-                "deadline": None,
-                "owner": assigned_to,
-                "status": str(state),
-                "dependencies": [],
-                "blocks": [],
-                "raw_text": description,
-                "category": "incident",
-                "sla_status": "active",
-            })
+            normalized.append(
+                {
+                    "id": f"SN-{short_id}",
+                    "title": record.get("short_description", ""),
+                    "description": description,
+                    "source": f"SN-{short_id}",
+                    "source_type": "servicenow",
+                    "priority": priority,
+                    "deadline": None,
+                    "owner": assigned_to,
+                    "status": str(state),
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": description,
+                    "category": "incident",
+                    "sla_status": "active",
+                }
+            )
         return normalized
 
     async def health_check(self) -> bool:
         if not self._client:
             return False
         try:
-            resp = await self._client.get("/api/now/table/incident", params={"sysparm_limit": 1})
+            resp = await self._client.get(
+                "/api/now/table/incident", params={"sysparm_limit": 1}
+            )
             resp.raise_for_status()
             return True
         except Exception:

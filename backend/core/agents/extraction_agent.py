@@ -24,12 +24,20 @@ class ExtractionAgent(BaseAgent):
 
         transcript_list = context.get("transcript", [])
         if transcript_list:
-            transcript_text = transcript_list[0].get("raw_text", "") if isinstance(transcript_list, list) else ""
+            transcript_text = (
+                transcript_list[0].get("raw_text", "")
+                if isinstance(transcript_list, list)
+                else ""
+            )
             if transcript_text:
                 try:
-                    transcript_tasks = await extract_from_transcript(transcript_text, "transcript_001")
+                    transcript_tasks = await extract_from_transcript(
+                        transcript_text, "transcript_001"
+                    )
                     extracted_tasks.extend(transcript_tasks)
-                    logger.info("Extracted %d tasks from transcript", len(transcript_tasks))
+                    logger.info(
+                        "Extracted %d tasks from transcript", len(transcript_tasks)
+                    )
                 except Exception as e:
                     logger.error("Transcript extraction failed: %s", e)
 

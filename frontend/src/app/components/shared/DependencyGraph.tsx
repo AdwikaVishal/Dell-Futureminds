@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import ReactFlow, { Node, Edge, Background, Controls, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
 
-const TEXT_PRIMARY = "#EDF3EF";
-const TEXT_MUTED = "#8B9890";
-const SAGE = "#8FCBA8";
-const BORDER = "#232B26";
+const SOURCE_BG: Record<string, string> = {
+  jira: "#F7C5E6",
+  defect: "#F7C5E6",
+  email: "#C9D8FF",
+  github: "#DCC7F7",
+  slack: "#F5D66E",
+  transcript: "#BFD78D",
+};
 
-const SOURCE_COLORS: Record<string, string> = {
-  jira: "#1a3a4a",
-  defect: "#3a1a1a",
-  email: "#1a2a3a",
-  github: "#1a1a2a",
-  slack: "#2a1a2a",
-  transcript: "#1a2a1a",
+const SOURCE_LABELS: Record<string, string> = {
+  jira: "Jira",
+  defect: "Defect",
+  email: "Email",
+  github: "GitHub",
+  slack: "Slack",
+  transcript: "Transcript",
 };
 
 export function DependencyGraph({ tasks }: { tasks: any[] }) {
@@ -35,13 +39,13 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
         data: { label },
         position: { x: (i % 4) * 220, y: Math.floor(i / 4) * 110 },
         style: {
-          background: SOURCE_COLORS[task.source_type] || "#1a1a1a",
-          color: TEXT_PRIMARY,
-          padding: "8px 12px",
-          borderRadius: 8,
-          border: `1px solid ${BORDER}`,
+          background: SOURCE_BG[task.source_type] || "#F6F2E9",
+          color: "#111111",
+          padding: "8px 14px",
+          borderRadius: 12,
+          border: "1px solid #E9E4D8",
           fontSize: 11,
-          fontFamily: "monospace",
+          fontFamily: "'IBM Plex Mono', monospace",
           maxWidth: 180,
         },
       });
@@ -57,7 +61,7 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
               target: task.id,
               type: "smoothstep",
               animated: true,
-              style: { stroke: "#ff6b6b", strokeWidth: 1.5 },
+              style: { stroke: "#F7C5E6", strokeWidth: 2 },
             });
           }
         }
@@ -74,7 +78,7 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
               target: blockedId,
               type: "smoothstep",
               animated: true,
-              style: { stroke: SAGE, strokeWidth: 1.5 },
+              style: { stroke: "#BFD78D", strokeWidth: 2 },
             });
           }
         }
@@ -88,17 +92,9 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
   const hasDeps = edges.length > 0;
 
   return (
-    <div style={{ background: "#0A100D", border: `1px solid ${BORDER}`, borderRadius: 11, padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${BORDER}` }}>
-        <div style={{ color: TEXT_PRIMARY, fontSize: 14, fontWeight: 600 }}>Dependency Graph</div>
-        <div style={{ color: TEXT_MUTED, fontSize: 11, marginTop: 2 }}>
-          {hasDeps
-            ? `Red arrows = depends on · Green arrows = blocks · ${nodes.length} nodes, ${edges.length} edges`
-            : "No dependencies found between tasks"}
-        </div>
-      </div>
+    <div>
       {hasDeps ? (
-        <div style={{ width: "100%", height: 350 }}>
+        <div style={{ width: "100%", height: 380, borderRadius: 14, overflow: "hidden", border: "1px solid #E9E4D8" }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -108,15 +104,15 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
             attributionPosition="bottom-left"
             minZoom={0.3}
             maxZoom={2}
-            style={{ background: "#0A100D" }}
+            style={{ background: "#F6F2E9" }}
           >
-            <Background color="#1a231e" gap={16} />
-            <Controls style={{ background: "#161D19", border: `1px solid ${BORDER}`, button: { background: "#161D19", color: TEXT_MUTED, border: "none" } }} />
+            <Background color="#E9E4D8" gap={16} />
+            <Controls style={{ background: "#FFFFFF", border: "1px solid #E9E4D8", borderRadius: 12 }} />
           </ReactFlow>
         </div>
       ) : (
-        <div style={{ padding: "40px 18px", textAlign: "center", color: TEXT_MUTED, fontSize: 12 }}>
-          No dependency relationships found. Tasks with <code>dependencies</code> or <code>blocks</code> fields will appear here.
+        <div style={{ padding: "24px 18px", textAlign: "center", color: "#7A7A7A", fontSize: 12, border: "1px solid #E9E4D8", borderRadius: 14 }}>
+          No dependency relationships found. Tasks with <code style={{ background: "#F6F2E9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>dependencies</code> or <code style={{ background: "#F6F2E9", padding: "2px 6px", borderRadius: 4, fontSize: 11 }}>blocks</code> fields will appear here.
         </div>
       )}
     </div>

@@ -1,17 +1,61 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import random
 import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Any, Optional
 from dotenv import load_dotenv
 import httpx
 from core.tracer import trace
+
+_RETRYABLE_STATUSES = {429, 503, 502, 500}
+
+
+async def _retry_with_backoff(
+    fn,
+    max_retries: int = 1,
+    base_delay: float = 0.5,
+    backoff_factor: float = 2.0,
+) -> httpx.Response:
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            resp = await fn()
+            if resp.status_code in _RETRYABLE_STATUSES and attempt < max_retries:
+                delay = base_delay * (backoff_factor**attempt) + random.uniform(0, 0.5)
+                logger.warning(
+                    "LLM %s (attempt %d/%d), retrying in %.1fs",
+                    resp.status_code,
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
+            resp.raise_for_status()
+            return resp
+        except (httpx.HTTPStatusError, httpx.RequestError) as e:
+            last_exc = e
+            if attempt >= max_retries:
+                raise
+            delay = base_delay * (backoff_factor**attempt) + random.uniform(0, 0.5)
+            logger.warning(
+                "LLM error %s (attempt %d/%d), retrying in %.1fs",
+                e,
+                attempt + 1,
+                max_retries,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    raise last_exc  # type: ignore[misc]
+
 
 load_dotenv()
 
@@ -50,12 +94,15 @@ def _extract_json(text: str) -> tuple[Optional[Any], Optional[str]]:
         start = text.find(open_char)
         end = text.rfind(close_char)
         if start != -1 and end != -1 and end > start:
-            candidate = text[start:end + 1]
+            candidate = text[start : end + 1]
             try:
                 return json.loads(candidate), None
             except json.JSONDecodeError:
                 continue
-    return None, f"Could not extract valid JSON from response (length={len(text)} chars)"
+    return (
+        None,
+        f"Could not extract valid JSON from response (length={len(text)} chars)",
+    )
 
 
 class LLMBackend(ABC):
@@ -81,6 +128,7 @@ class LLMBackend(ABC):
 #   GEMINI_API_KEY=AIza...
 #   GEMINI_MODEL=gemini-2.5-flash   (default)
 # ---------------------------------------------------------------------------
+
 
 class GeminiBackend(LLMBackend):
     def __init__(self) -> None:
@@ -150,12 +198,13 @@ class GeminiBackend(LLMBackend):
 
         start = time.monotonic()
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=body,
+            response = await _retry_with_backoff(
+                lambda: client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
             )
-            response.raise_for_status()
             data = response.json()
         latency_ms = (time.monotonic() - start) * 1000
 
@@ -189,10 +238,15 @@ class GeminiBackend(LLMBackend):
 #   LLM_BASE_URL=https://api.x.ai/v1
 # ---------------------------------------------------------------------------
 
+
 class GrokBackend(LLMBackend):
     def __init__(self) -> None:
-        self.api_key = os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
-        self.base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+        self.api_key = os.environ.get("LLM_API_KEY") or os.environ.get(
+            "XAI_API_KEY", ""
+        )
+        self.base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip(
+            "/"
+        )
         self.model = self._sanitize_model(os.environ.get("LLM_MODEL", "grok-3-mini"))
 
     @staticmethod
@@ -213,7 +267,10 @@ class GrokBackend(LLMBackend):
             return False, "LLM_API_KEY not set", []
         base_url = os.environ.get("LLM_BASE_URL", "https://api.x.ai/v1").rstrip("/")
         model = GrokBackend._sanitize_model(os.environ.get("LLM_MODEL", "grok-3-mini"))
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
@@ -262,12 +319,13 @@ class GrokBackend(LLMBackend):
 
         start = time.monotonic()
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=body,
+            response = await _retry_with_backoff(
+                lambda: client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
             )
-            response.raise_for_status()
             data = response.json()
         latency_ms = (time.monotonic() - start) * 1000
 
@@ -297,6 +355,7 @@ class GrokBackend(LLMBackend):
 # check_connectivity(). Points to Grok by default.
 # ---------------------------------------------------------------------------
 
+
 class OpenAICompatibleBackend(GrokBackend):
     """Alias of GrokBackend. Kept so main.py startup check still works."""
 
@@ -315,6 +374,7 @@ class OpenAICompatibleBackend(GrokBackend):
 # ---------------------------------------------------------------------------
 # Heuristic fallback (FALLBACK #2 — no API key needed)
 # ---------------------------------------------------------------------------
+
 
 class HeuristicBackend(LLMBackend):
     @property
@@ -340,11 +400,16 @@ class HeuristicBackend(LLMBackend):
             elif "extract" in system_lower:
                 text = json.dumps(self._heuristic_extract(prompt))
                 parsed_json = json.loads(text)
+            elif "question" in system_lower or "assistant" in system_lower:
+                parsed_json = self._heuristic_qa(prompt)
+                text = json.dumps(parsed_json)
             else:
-                text = json.dumps({
-                    "answer": "Heuristic mode: Unable to answer questions. Please check your task list manually.",
-                    "citations": [],
-                })
+                text = json.dumps(
+                    {
+                        "answer": "Heuristic mode: Unable to answer questions. Please check your task list manually.",
+                        "citations": [],
+                    }
+                )
                 parsed_json = json.loads(text)
         else:
             if "planning" in system_lower:
@@ -382,26 +447,32 @@ class HeuristicBackend(LLMBackend):
             rationale = self._build_rationale(task, score)
             du = self._deadline_urgency(task.get("deadline"))
             sv = self._severity_score(task.get("priority"))
-            bi = self._business_impact(task.get("vp_escalation", False), task.get("customer_facing", False))
+            bi = self._business_impact(
+                task.get("vp_escalation", False), task.get("customer_facing", False)
+            )
             db = self._dependency_blocking(task.get("blocks", []))
-            scored.append({
-                "id": task.get("id", ""),
-                "score": round(score, 1),
-                "score_breakdown": {
-                    "deadline_urgency": round(du, 1),
-                    "severity": round(sv, 1),
-                    "business_impact": round(bi, 1),
-                    "dependency_blocking": round(db, 1),
-                },
-                "rationale": rationale,
-            })
+            scored.append(
+                {
+                    "id": task.get("id", ""),
+                    "score": round(score, 1),
+                    "score_breakdown": {
+                        "deadline_urgency": round(du, 1),
+                        "severity": round(sv, 1),
+                        "business_impact": round(bi, 1),
+                        "dependency_blocking": round(db, 1),
+                    },
+                    "rationale": rationale,
+                }
+            )
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored
 
     def _compute_score(self, task: dict[str, Any]) -> float:
         du = self._deadline_urgency(task.get("deadline"))
         sv = self._severity_score(task.get("priority"))
-        bi = self._business_impact(task.get("vp_escalation", False), task.get("customer_facing", False))
+        bi = self._business_impact(
+            task.get("vp_escalation", False), task.get("customer_facing", False)
+        )
         db = self._dependency_blocking(task.get("blocks", []))
         return du * 0.35 + sv * 0.30 + bi * 0.20 + db * 0.15
 
@@ -444,9 +515,16 @@ class HeuristicBackend(LLMBackend):
     def _build_rationale(self, task: dict[str, Any], score: float) -> str:
         du = self._deadline_urgency(task.get("deadline"))
         sv = self._severity_score(task.get("priority"))
-        bi = self._business_impact(task.get("vp_escalation", False), task.get("customer_facing", False))
+        bi = self._business_impact(
+            task.get("vp_escalation", False), task.get("customer_facing", False)
+        )
         db = self._dependency_blocking(task.get("blocks", []))
-        components = {"deadline urgency": du, "severity": sv, "business impact": bi, "dependency blocking": db}
+        components = {
+            "deadline urgency": du,
+            "severity": sv,
+            "business impact": bi,
+            "dependency blocking": db,
+        }
         biggest = max(components, key=components.get)
         return (
             f"Score breakdown: deadline_urgency={du:.0f}×0.35, severity={sv:.0f}×0.30, "
@@ -478,7 +556,10 @@ class HeuristicBackend(LLMBackend):
         tasks = []
         seen_titles: set[str] = set()
         action_patterns = [
-            re.compile(r"(?:can you|please|could you|make sure to|don't forget to|remember to)\s+(.+?)(?:\.|$)", re.IGNORECASE),
+            re.compile(
+                r"(?:can you|please|could you|make sure to|don't forget to|remember to)\s+(.+?)(?:\.|$)",
+                re.IGNORECASE,
+            ),
             re.compile(r"(?:TODO|FIXME|ACTION)[:\s]+(.+)$", re.MULTILINE),
         ]
         for pattern in action_patterns:
@@ -489,22 +570,136 @@ class HeuristicBackend(LLMBackend):
                 key = title.lower()
                 if key not in seen_titles:
                     seen_titles.add(key)
-                    tasks.append({
-                        "title": title,
-                        "owner": None,
-                        "deadline": None,
-                        "confidence": 0.7,
-                        "source_sentence": match.group(0).strip(),
-                    })
+                    tasks.append(
+                        {
+                            "title": title,
+                            "owner": None,
+                            "deadline": None,
+                            "confidence": 0.7,
+                            "source_sentence": match.group(0).strip(),
+                        }
+                    )
         return tasks
+
+    def _heuristic_qa(self, prompt: str) -> dict[str, Any]:
+        tasks, _ = _extract_json(prompt)
+        if not isinstance(tasks, list) or not tasks:
+            return {
+                "answer": "No task data available to answer your question.",
+                "citations": [],
+            }
+
+        question_match = re.search(r'USER QUESTION:\s*"([^"]+)"', prompt)
+        question = question_match.group(1).lower() if question_match else prompt.lower()
+        citations = []
+
+        if any(w in question for w in ["top", "priority", "most important", "#1"]):
+            candidates = sorted(
+                tasks,
+                key=lambda t: (
+                    {"P0": 0, "P1": 1, "P2": 2, "P3": 3}.get(t.get("priority", ""), 4),
+                    -(t.get("score") or 0),
+                ),
+            )
+            if candidates:
+                t = candidates[0]
+                tid = t.get("id") or t.get("task_id") or ""
+                title = t.get("title", "Untitled")
+                priority = t.get("priority", "unset")
+                score = t.get("score")
+                score_str = f" (score: {score:.0f})" if score else ""
+                citations.append(tid)
+                return {
+                    "answer": f'Your top priority is "{title}" [priority: {priority}{score_str}].',
+                    "citations": citations,
+                }
+        elif any(w in question for w in ["how many", "count", "total tasks"]):
+            return {
+                "answer": f"You have {len(tasks)} tasks in your list.",
+                "citations": [
+                    t.get("id") or t.get("task_id", "")
+                    for t in tasks[:3]
+                    if t.get("id") or t.get("task_id")
+                ],
+            }
+        elif any(w in question for w in ["blocked", "blocking", "stuck", "waiting"]):
+            blocked = [t for t in tasks if t.get("status") == "blocked"]
+            if blocked:
+                names = "\n".join(
+                    f"- {t.get('title', 'Untitled')} ({t.get('id', '')})"
+                    for t in blocked[:5]
+                )
+                citations = [
+                    t.get("id") or t.get("task_id", "")
+                    for t in blocked[:5]
+                    if t.get("id") or t.get("task_id")
+                ]
+                return {
+                    "answer": f"Blocked tasks ({len(blocked)}):\n{names}",
+                    "citations": citations,
+                }
+            return {"answer": "No tasks are currently blocked.", "citations": []}
+        elif any(w in question for w in ["p0", "p1", "critical", "urgent"]):
+            urgent = [t for t in tasks if t.get("priority") in ("P0", "P1")]
+            if urgent:
+                names = "\n".join(
+                    f"- {t.get('title', 'Untitled')} ({t.get('priority', '')})"
+                    for t in urgent[:5]
+                )
+                citations = [
+                    t.get("id") or t.get("task_id", "")
+                    for t in urgent[:5]
+                    if t.get("id") or t.get("task_id")
+                ]
+                return {
+                    "answer": f"Urgent tasks ({len(urgent)}):\n{names}",
+                    "citations": citations,
+                }
+            return {"answer": "No P0 or P1 tasks in your list.", "citations": []}
+        elif any(w in question for w in ["deadline", "due", "sla", "overdue"]):
+            overdue = [
+                t for t in tasks if t.get("status") == "overdue" or t.get("deadline")
+            ]
+            if overdue:
+                names = "\n".join(
+                    f"- {t.get('title', 'Untitled')} (due: {t.get('deadline', 'unknown')})"
+                    for t in overdue[:5]
+                )
+                citations = [
+                    t.get("id") or t.get("task_id", "")
+                    for t in overdue[:5]
+                    if t.get("id") or t.get("task_id")
+                ]
+                return {
+                    "answer": f"Tasks with deadlines ({len(overdue)}):\n{names}",
+                    "citations": citations,
+                }
+            return {
+                "answer": "No tasks with upcoming deadlines found.",
+                "citations": [],
+            }
+        else:
+            return {
+                "answer": "I can answer questions about your top priorities, task count, blocked tasks, urgent items, and deadlines. Try asking something specific!",
+                "citations": [],
+            }
 
 
 # ---------------------------------------------------------------------------
 # Rules engine (FALLBACK #3 — absolute last resort)
 # ---------------------------------------------------------------------------
 
+
 class RulesEngineBackend(LLMBackend):
-    HIGH_KEYWORDS = {"critical", "urgent", "production", "hotfix", "p0", "severe", "outage"}
+    HIGH_KEYWORDS = {
+        "critical",
+        "urgent",
+        "production",
+        "hotfix",
+        "p0",
+        "severe",
+        "outage",
+    }
     MEDIUM_KEYWORDS = {"review", "meeting", "docs", "documentation", "refactor", "test"}
 
     @property
@@ -522,7 +717,9 @@ class RulesEngineBackend(LLMBackend):
         start = time.monotonic()
         system_lower = (system or "").lower()
 
-        if json_mode and ("prioritization" in system_lower or "prioritisation" in system_lower):
+        if json_mode and (
+            "prioritization" in system_lower or "prioritisation" in system_lower
+        ):
             scored = self._rules_prioritize(prompt)
             text = json.dumps(scored)
             parsed_json = scored
@@ -532,7 +729,10 @@ class RulesEngineBackend(LLMBackend):
             text = json.dumps(extracted)
             parsed_json = extracted
         elif json_mode:
-            result = {"answer": "Rules engine: Unable to answer. Please check your task list manually.", "citations": []}
+            result = {
+                "answer": "Rules engine: Unable to answer. Please check your task list manually.",
+                "citations": [],
+            }
             text = json.dumps(result)
             parsed_json = result
         else:
@@ -541,9 +741,13 @@ class RulesEngineBackend(LLMBackend):
 
         latency_ms = (time.monotonic() - start) * 1000
         return LLMResponse(
-            text=text, input_tokens=0, output_tokens=0,
-            latency_ms=latency_ms, model="rules-engine",
-            parsed_json=parsed_json, json_parse_error=None,
+            text=text,
+            input_tokens=0,
+            output_tokens=0,
+            latency_ms=latency_ms,
+            model="rules-engine",
+            parsed_json=parsed_json,
+            json_parse_error=None,
         )
 
     def _rules_prioritize(self, prompt: str) -> list[dict[str, Any]]:
@@ -559,17 +763,19 @@ class RulesEngineBackend(LLMBackend):
                 score = 60.0
             else:
                 score = 25.0
-            scored.append({
-                "id": task.get("id", ""),
-                "score": round(score, 1),
-                "score_breakdown": {
-                    "deadline_urgency": 0,
-                    "severity": score,
-                    "business_impact": 0,
-                    "dependency_blocking": 0,
-                },
-                "rationale": f"Rules engine: keyword-based score of {score:.0f}.",
-            })
+            scored.append(
+                {
+                    "id": task.get("id", ""),
+                    "score": round(score, 1),
+                    "score_breakdown": {
+                        "deadline_urgency": 0,
+                        "severity": score,
+                        "business_impact": 0,
+                        "dependency_blocking": 0,
+                    },
+                    "rationale": f"Rules engine: keyword-based score of {score:.0f}.",
+                }
+            )
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored
 
@@ -578,12 +784,13 @@ class RulesEngineBackend(LLMBackend):
 # Resilient client — tries Gemini first, then Grok, then heuristic, then rules
 # ---------------------------------------------------------------------------
 
+
 class ResilientLLMClient:
     def __init__(self) -> None:
         self.backends: list[LLMBackend] = [
-            GeminiBackend(),       # PRIMARY
-            GrokBackend(),         # FALLBACK #1
-            HeuristicBackend(),    # FALLBACK #2
+            GeminiBackend(),  # PRIMARY
+            GrokBackend(),  # FALLBACK #1
+            HeuristicBackend(),  # FALLBACK #2
             RulesEngineBackend(),  # FALLBACK #3
         ]
 

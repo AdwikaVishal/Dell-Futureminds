@@ -1,9 +1,18 @@
-import json, os, sys
+import json
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(__file__))
 # Just look at data files directly
 data_dir = os.path.join(os.path.dirname(__file__), "data")
 owners = set()
-for fname in ["jira_samples.json", "defects.json", "github_samples.json", "slack_samples.json", "emails.json"]:
+for fname in [
+    "jira_samples.json",
+    "defects.json",
+    "github_samples.json",
+    "slack_samples.json",
+    "emails.json",
+]:
     fpath = os.path.join(data_dir, fname)
     if os.path.exists(fpath):
         with open(fpath) as f:

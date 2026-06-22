@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from core.state import store, save_state, save_trace
+from core.state import save_trace
 from core.connector_registry import connector_registry
 from core.agent import run_pipeline
 from core.memory import memory_system
@@ -77,12 +77,22 @@ class SyncEngine:
                 connector.last_sync = start.isoformat()
 
                 if event_count != prev_count:
-                    logger.info("New data detected from %s (%d -> %d) — reprioritizing", source_type, prev_count, event_count)
+                    logger.info(
+                        "New data detected from %s (%d -> %d) — reprioritizing",
+                        source_type,
+                        prev_count,
+                        event_count,
+                    )
                     await run_pipeline()
-                    memory_system.record_agent_memory("sync_engine", f"last_detected_change_{source_type}",
-                                                      f"{prev_count}->{event_count} at {datetime.now(timezone.utc).isoformat()}")
+                    memory_system.record_agent_memory(
+                        "sync_engine",
+                        f"last_detected_change_{source_type}",
+                        f"{prev_count}->{event_count} at {datetime.now(timezone.utc).isoformat()}",
+                    )
                 else:
-                    logger.info("No changes in %s (still %d items)", source_type, event_count)
+                    logger.info(
+                        "No changes in %s (still %d items)", source_type, event_count
+                    )
             return True
         except Exception as e:
             logger.error("Sync failed for %s: %s", source_type, e)
@@ -90,7 +100,7 @@ class SyncEngine:
             return False
         finally:
             elapsed = (datetime.now(timezone.utc) - start).total_seconds() * 1000
-            save_trace(f"sync_{source_type}", elapsed, status="ok")
+            await save_trace(f"sync_{source_type}", elapsed, status="ok")
 
     async def sync_now(self, source_type: Optional[str] = None):
         if source_type:

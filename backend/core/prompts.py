@@ -4,7 +4,9 @@ import json
 from typing import Any
 
 
-def build_extraction_prompt(source_text: str, source_type: str, source_id: str) -> tuple[str, str]:
+def build_extraction_prompt(
+    source_text: str, source_type: str, source_id: str
+) -> tuple[str, str]:
     system = (
         "You are an expert assistant that extracts actionable tasks hidden inside "
         "unstructured workplace text (emails, meeting transcripts). You are precise, "
@@ -16,53 +18,53 @@ def build_extraction_prompt(source_text: str, source_type: str, source_id: str) 
     few_shot = (
         "Here are examples of correct extraction:\n\n"
         "EXAMPLE 1\n"
-        "Source text: \"Thanks for the notes. Also, quick favor - can you loop in finance "
+        'Source text: "Thanks for the notes. Also, quick favor - can you loop in finance '
         "before Friday so the invoice doesn't get stuck again? Otherwise nothing else to add.\"\n"
         "Output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Loop in finance before Friday to avoid invoice delay\",\n"
-        "    \"owner\": null,\n"
-        "    \"deadline\": \"Friday\",\n"
-        "    \"confidence\": 0.9,\n"
-        "    \"source_sentence\": \"can you loop in finance before Friday so the invoice doesn't get stuck again?\"\n"
+        '    "title": "Loop in finance before Friday to avoid invoice delay",\n'
+        '    "owner": null,\n'
+        '    "deadline": "Friday",\n'
+        '    "confidence": 0.9,\n'
+        '    "source_sentence": "can you loop in finance before Friday so the invoice doesn\'t get stuck again?"\n'
         "  }\n"
         "]\n\n"
         "EXAMPLE 2 (no real action item - should return empty array)\n"
-        "Source text: \"Weekly infra report: cloud spend up 3%. No action required, informational only.\"\n"
+        'Source text: "Weekly infra report: cloud spend up 3%. No action required, informational only."\n'
         "Output:\n"
         "[]\n\n"
         "EXAMPLE 3 (action item assigned to someone OTHER than the inbox owner - owner field must be set)\n"
-        "Source text: \"Diane, can you make sure this gets done before end of sprint? Appreciate it.\"\n"
+        'Source text: "Diane, can you make sure this gets done before end of sprint? Appreciate it."\n'
         "Output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Ensure task is completed before end of sprint\",\n"
-        "    \"owner\": \"Diane\",\n"
-        "    \"deadline\": \"end of sprint\",\n"
-        "    \"confidence\": 0.85,\n"
-        "    \"source_sentence\": \"Diane, can you make sure this gets done before end of sprint?\"\n"
+        '    "title": "Ensure task is completed before end of sprint",\n'
+        '    "owner": "Diane",\n'
+        '    "deadline": "end of sprint",\n'
+        '    "confidence": 0.85,\n'
+        '    "source_sentence": "Diane, can you make sure this gets done before end of sprint?"\n'
         "  }\n"
         "]\n\n"
         "EXAMPLE 4 (multiple buried items in one email - extract each separately)\n"
-        "Source text: \"Recap of sync: mostly routine planning. One more thing - can you also "
+        'Source text: "Recap of sync: mostly routine planning. One more thing - can you also '
         "update the API docs once the rate limit change ships? And separately, can someone "
-        "double check the billing webhook before Friday?\"\n"
+        'double check the billing webhook before Friday?"\n'
         "Output:\n"
         "[\n"
         "  {\n"
-        "    \"title\": \"Update API docs once rate limit change ships\",\n"
-        "    \"owner\": null,\n"
-        "    \"deadline\": null,\n"
-        "    \"confidence\": 0.82,\n"
-        "    \"source_sentence\": \"can you also update the API docs once the rate limit change ships?\"\n"
+        '    "title": "Update API docs once rate limit change ships",\n'
+        '    "owner": null,\n'
+        '    "deadline": null,\n'
+        '    "confidence": 0.82,\n'
+        '    "source_sentence": "can you also update the API docs once the rate limit change ships?"\n'
         "  },\n"
         "  {\n"
-        "    \"title\": \"Double check the billing webhook\",\n"
-        "    \"owner\": null,\n"
-        "    \"deadline\": \"Friday\",\n"
-        "    \"confidence\": 0.78,\n"
-        "    \"source_sentence\": \"can someone double check the billing webhook before Friday?\"\n"
+        '    "title": "Double check the billing webhook",\n'
+        '    "owner": null,\n'
+        '    "deadline": "Friday",\n'
+        '    "confidence": 0.78,\n'
+        '    "source_sentence": "can someone double check the billing webhook before Friday?"\n'
         "  }\n"
         "]"
     )
@@ -72,12 +74,14 @@ def build_extraction_prompt(source_text: str, source_type: str, source_id: str) 
         "Remember: return ONLY the JSON array, nothing else. If there are no actionable "
         "items, return [].\n\n"
         "SOURCE TEXT:\n"
-        f"\"\"\"\n{source_text}\n\"\"\"\n"
+        f'"""\n{source_text}\n"""\n'
     )
     return system, user_prompt
 
 
-def build_prioritization_prompt(deduplicated_tasks: list[dict[str, Any]]) -> tuple[str, str]:
+def build_prioritization_prompt(
+    deduplicated_tasks: list[dict[str, Any]],
+) -> tuple[str, str]:
     system = (
         "You are a prioritization engine for a software engineer's task list. "
         "You score every task using EXACTLY the formula provided, and you never "
@@ -99,8 +103,6 @@ def build_prioritization_prompt(deduplicated_tasks: list[dict[str, Any]]) -> tup
         '  "id": "<task id>",\n'
         '  "score": <number, 0-100, one decimal place>,\n'
         '  "score_breakdown": {"deadline_urgency": <0-100>, "severity": <0-100>, "business_impact": <0-100>, "dependency_blocking": <0-100>},\n'
-        
-        
         '  "rationale": "<two sentences: score breakdown by component, then the single biggest driver>"\n'
         "}\n"
     )
@@ -140,10 +142,10 @@ def build_daily_plan_prompt(
         f"{alerts_block}\n"
         f"RANKED TASKS:\n{tasks_json}\n\n"
         "Rules:\n"
-        "- \"Top 3 for Today\" = the 3 highest-scored tasks, each with a one-sentence rationale.\n"
-        "- \"Do Next\" = next 2-4 tasks worth queuing up after the top 3.\n"
-        "- \"Blocked - Needs Action From Others\" = any task whose dependencies aren't resolved yet, or that explicitly needs someone else to act first.\n"
-        "- \"Defer to Tomorrow\" = remaining lower-priority tasks.\n"
+        '- "Top 3 for Today" = the 3 highest-scored tasks, each with a one-sentence rationale.\n'
+        '- "Do Next" = next 2-4 tasks worth queuing up after the top 3.\n'
+        '- "Blocked - Needs Action From Others" = any task whose dependencies aren\'t resolved yet, or that explicitly needs someone else to act first.\n'
+        '- "Defer to Tomorrow" = remaining lower-priority tasks.\n'
         "- Every task must appear in exactly one section.\n"
     )
     return system, user_prompt
@@ -202,14 +204,16 @@ def build_qa_prompt(
     )
     history_block = ""
     if chat_history:
-        history_lines = "\n".join(f"{turn['role']}: {turn['content']}" for turn in chat_history[-6:])
+        history_lines = "\n".join(
+            f"{turn['role']}: {turn['content']}" for turn in chat_history[-6:]
+        )
         history_block = f"\nRECENT CONVERSATION:\n{history_lines}\n"
     context_json = json.dumps(full_task_context, indent=2)
     user_prompt = (
         "TASK CONTEXT (the only source of truth -- do not use outside knowledge):\n"
         f"{context_json}\n"
         f"{history_block}\n"
-        f"USER QUESTION: \"{user_question}\"\n\n"
+        f'USER QUESTION: "{user_question}"\n\n'
         "Answer the question using only the context above. Cite specific task/source IDs "
         "that support your answer.\n"
     )

@@ -1,11 +1,9 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
-from typing import Optional
 
-from models.task import Task, RankedTask, DailyPlan, InjectRequest, Alert
-from core.state import store, save_state, load_state, save_trace
+from models.task import Task, RankedTask, DailyPlan, InjectRequest
+from core.state import store, save_state, save_trace
 from core.agents.orchestrator import AgentOrchestrator
 from core.alert_engine import check_alerts
 
@@ -17,7 +15,6 @@ from core.qa import answer_question as qa_answer_question
 from core.notification_service import notification_service
 from core.dependency_analyzer import DependencyAnalyzer
 from core.calendar_planner import CalendarPlanner
-from core.memory import memory_system
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +54,8 @@ async def run_pipeline() -> DailyPlan:
         plan.deferred_tasks_detected = deferred
 
     store.update(ranked_tasks, plan)
-    save_state(ranked_tasks, plan)
-    save_trace("pipeline_total", (time.monotonic() - start_time) * 1000)
+    await save_state(ranked_tasks, plan)
+    await save_trace("pipeline_total", (time.monotonic() - start_time) * 1000)
 
     notification_service.schedule(plan=plan, tasks=ranked_tasks, alerts=plan.alerts)
 
@@ -101,12 +98,16 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
         new_task.grounded = result.get("grounded", True)
         new_task.grounding_confidence = result.get("confidence", 0.95)
 
-        updated_ranked, change_summary = await reprioritize(store.current_tasks, new_task)
+        updated_ranked, change_summary = await reprioritize(
+            store.current_tasks, new_task
+        )
 
         alerts_list = check_alerts(updated_ranked)
         new_plan = build_daily_plan_from_tasks(updated_ranked, alerts_list)
 
-        time_blocked = CalendarPlanner.generate_time_blocked_plan(updated_ranked[:min(6, len(updated_ranked))])
+        time_blocked = CalendarPlanner.generate_time_blocked_plan(
+            updated_ranked[: min(6, len(updated_ranked))]
+        )
         if time_blocked:
             new_plan.time_blocked_plan = time_blocked
 
@@ -133,8 +134,10 @@ async def reprioritize_with_injection(new_task_data: InjectRequest) -> DailyPlan
         if change_summary:
             store.narrative_alert = f"{store.narrative_alert or ''} | {change_summary}"
 
-        save_state(updated_ranked, new_plan)
-        notification_service.schedule(plan=new_plan, tasks=updated_ranked, alerts=new_plan.alerts)
+        await save_state(updated_ranked, new_plan)
+        notification_service.schedule(
+            plan=new_plan, tasks=updated_ranked, alerts=new_plan.alerts
+        )
 
         narrative = getattr(store, "narrative_alert", None)
         if narrative:

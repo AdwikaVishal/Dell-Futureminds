@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import httpx
 
-from core.connectors.base import SourceConnector, ConnectorError, ConnectorAuthError
+from core.connectors.base import SourceConnector
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +21,17 @@ class JiraConnector(SourceConnector):
 
     async def connect(self) -> bool:
         if not self._url or not self._email or not self._api_token:
-            logger.warning("Jira credentials not configured (JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN)")
+            logger.warning(
+                "Jira credentials not configured (JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN)"
+            )
             self.connected = False
             self.error = "Missing Jira credentials"
             return False
         try:
             auth = httpx.BasicAuth(self._email, self._api_token)
-            self._client = httpx.AsyncClient(base_url=self._url, auth=auth, timeout=30.0)
+            self._client = httpx.AsyncClient(
+                base_url=self._url, auth=auth, timeout=30.0
+            )
             resp = await self._client.get("/rest/api/3/myself")
             resp.raise_for_status()
             self.connected = True
@@ -44,13 +48,45 @@ class JiraConnector(SourceConnector):
     def _load_simulated(self) -> list[dict[str, Any]]:
         import json
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "jira_samples.json"
+
+        path = (
+            Path(__file__).resolve().parent.parent.parent / "data" / "jira_board.json"
+        )
         if not path.exists():
             logger.warning("Simulated Jira data not found at %s", path)
             return []
         try:
             with open(path) as f:
-                return json.load(f)
+                raw = json.load(f)
+            normalized = []
+            for item in raw:
+                normalized.append({
+                    "id": item["id"],
+                    "key": item.get("key", item["id"]),
+                    "title": item["summary"],
+                    "summary": item["summary"],
+                    "description": item.get("description", ""),
+                    "source": item["id"],
+                    "source_type": "jira",
+                    "priority": {"Critical": "P0", "High": "P1", "Medium": "P2", "Low": "P3"}.get(item.get("priority", "Medium"), "P2"),
+                    "deadline": item.get("dueDate"),
+                    "owner": item.get("assignee", ""),
+                    "assignee": item.get("assignee"),
+                    "status": {"to do": "open", "in progress": "in_progress", "in review": "in_progress", "done": "done", "blocked": "blocked", "to_do": "open", "in_progress": "in_progress", "in_review": "in_progress"}.get(item.get("status", "To Do").lower().replace(" ", "_"), "open"),
+                    "dependencies": [l["id"] for l in item.get("linkedIssues", []) if l.get("type") in ("is blocked by",)],
+                    "blocks": [l["id"] for l in item.get("linkedIssues", []) if l.get("type") in ("blocks",)],
+                    "raw_text": item.get("description", ""),
+                    "type": item.get("type", "Task"),
+                    "labels": item.get("labels", []),
+                    "storyPoints": item.get("storyPoints"),
+                    "reporter": item.get("reporter", ""),
+                    "sprint": item.get("sprint", ""),
+                    "comments": item.get("comments", []),
+                    "vp_escalation": any("sarah.mitchell" in c.get("author", "").lower() for c in item.get("comments", [])),
+                    "customer_facing": True,
+                })
+            logger.info("Loaded %d items from simulated Jira board", len(normalized))
+            return normalized
         except Exception as e:
             logger.error("Failed to load simulated Jira data: %s", e)
             return []
@@ -106,7 +142,9 @@ class JiraConnector(SourceConnector):
             self.error = str(e)
             return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching Jira issues: %s — falling back to simulated data", e)
+            logger.error(
+                "Error fetching Jira issues: %s — falling back to simulated data", e
+            )
             self.error = str(e)
             return self._load_simulated()
 
@@ -142,20 +180,22 @@ class JiraConnector(SourceConnector):
             description = self._adf_to_text(fields.get("description"))
             raw_text = description
 
-            normalized.append({
-                "id": key,
-                "title": fields.get("summary", ""),
-                "description": description,
-                "source": key,
-                "source_type": "jira",
-                "priority": priority,
-                "deadline": fields.get("duedate"),
-                "owner": assignee,
-                "status": status,
-                "dependencies": dependencies,
-                "blocks": blocks,
-                "raw_text": raw_text,
-            })
+            normalized.append(
+                {
+                    "id": key,
+                    "title": fields.get("summary", ""),
+                    "description": description,
+                    "source": key,
+                    "source_type": "jira",
+                    "priority": priority,
+                    "deadline": fields.get("duedate"),
+                    "owner": assignee,
+                    "status": status,
+                    "dependencies": dependencies,
+                    "blocks": blocks,
+                    "raw_text": raw_text,
+                }
+            )
         return normalized
 
     @staticmethod
@@ -220,15 +260,21 @@ class JiraConnector(SourceConnector):
                         text = f"{text} ({mark['attrs']['href']})"
                 parts.append(text)
             elif node_type in ("paragraph", "heading", "listItem", "blockquote"):
-                parts.append(JiraConnector._adf_content_to_text(node.get("content", [])))
+                parts.append(
+                    JiraConnector._adf_content_to_text(node.get("content", []))
+                )
                 if node_type in ("paragraph", "heading", "blockquote"):
                     parts.append("\n")
             elif node_type in ("bulletList", "orderedList"):
-                parts.append(JiraConnector._adf_content_to_text(node.get("content", [])))
+                parts.append(
+                    JiraConnector._adf_content_to_text(node.get("content", []))
+                )
             elif node_type == "hardBreak":
                 parts.append("\n")
             elif node_type == "codeBlock":
-                parts.append(JiraConnector._adf_content_to_text(node.get("content", [])))
+                parts.append(
+                    JiraConnector._adf_content_to_text(node.get("content", []))
+                )
                 parts.append("\n")
             elif node_type == "rule":
                 parts.append("\n---\n")

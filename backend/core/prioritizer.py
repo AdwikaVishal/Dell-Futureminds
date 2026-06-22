@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 from core.llm_client import call_llm
-from core.prompts import build_daily_plan_prompt, build_reprioritize_prompt
+from core.prompts import build_daily_plan_prompt
 from core.scoring_engine import DeterministicScoringEngine
 from core.tracer import trace
 from core.memory import memory_system
@@ -16,16 +15,34 @@ from models.task import Task, DailyPlan, RankedTask, Alert
 logger = logging.getLogger(__name__)
 
 _SELF_OWNER_TOKENS = {"you", "me", "i", "myself", "the engineer", "inbox owner"}
-_TEAM_TOKENS = {"team", "dev", "frontend", "backend", "ai", "qa", "security", "oncall", "design"}
+_TEAM_TOKENS = {
+    "team",
+    "dev",
+    "frontend",
+    "backend",
+    "ai",
+    "qa",
+    "security",
+    "oncall",
+    "design",
+}
 
 
 def _is_my_task(task: Task) -> bool:
+    # Treat unowned tasks as mine (inbox)
+    if task.owner is None and task.assignee is None:
+        return True
+    # Check if explicitly assigned to me via assignee field
+    if task.assignee and "alex" in task.assignee.strip().lower():
+        return True
     if task.owner is None:
         return True
     owner_lower = task.owner.strip().lower()
     if owner_lower in _SELF_OWNER_TOKENS:
         return True
-    owner_parts = owner_lower.replace("@", " ").replace(".", " ").replace("-", " ").split()
+    owner_parts = (
+        owner_lower.replace("@", " ").replace(".", " ").replace("-", " ").split()
+    )
     for part in owner_parts:
         if part in _TEAM_TOKENS:
             return True
@@ -65,7 +82,14 @@ def _apply_preference_boosts(ranked: list[RankedTask]) -> list[RankedTask]:
     keyword_map = {
         "prefer_security": ["security", "audit", "token", "vulnerability", "encrypt"],
         "prefer_ui_bugs": ["ui", "dashboard", "safari", "render", "chart", "dark mode"],
-        "prefer_backend": ["database", "migration", "api", "sync", "websocket", "backend"],
+        "prefer_backend": [
+            "database",
+            "migration",
+            "api",
+            "sync",
+            "websocket",
+            "backend",
+        ],
         "prefer_performance": ["memory", "leak", "latency", "performance", "timeout"],
         "prefer_integrations": ["github", "jira", "slack", "connector", "sync"],
         "prefer_refactors": ["refactor", "cleanup", "docs", "documentation", "test"],
@@ -107,7 +131,10 @@ async def get_daily_plan(
     if not ranked_tasks:
         return "## Top 3 for Today\n\nNo tasks found.\n"
 
-    task_dicts = [_task_to_scoring_dict(t) | {"score": t.score, "rationale": t.rationale} for t in ranked_tasks]
+    task_dicts = [
+        _task_to_scoring_dict(t) | {"score": t.score, "rationale": t.rationale}
+        for t in ranked_tasks
+    ]
     system, user_prompt = build_daily_plan_prompt(task_dicts, active_alerts)
 
     try:
@@ -140,16 +167,37 @@ async def reprioritize(
     current_ranked_tasks: list[RankedTask],
     new_task: Task,
 ) -> tuple[list[RankedTask], str]:
+    INJECTION_BOOST = 1.30
+
     all_tasks = list(current_ranked_tasks) + [new_task]
     all_ranked = DeterministicScoringEngine.score_tasks(all_tasks)
 
-    injected_rank = next((i for i, t in enumerate(all_ranked) if t.id == new_task.id), -1)
+    for rt in all_ranked:
+        if rt.id == new_task.id:
+            boosted = round(rt.score * INJECTION_BOOST, 1)
+            rt.score = boosted
+            rt.rationale = (
+                f"Injected task: base score {rt.score:.1f} × {INJECTION_BOOST} boost = {boosted:.1f}. "
+                f"Manual injection indicates urgency. "
+                f"{rt.rationale}"
+            )
+            break
+
+    all_ranked.sort(key=lambda t: t.score, reverse=True)
+    for i, t in enumerate(all_ranked):
+        t.rank = i + 1
+
+    injected_rank = next(
+        (i for i, t in enumerate(all_ranked) if t.id == new_task.id), -1
+    )
     if injected_rank == 0:
         change_summary = f"New task '{new_task.title}' placed at #1 (score: {all_ranked[0].score:.1f})"
     elif injected_rank <= 3:
         change_summary = f"New task '{new_task.title}' entered top 3 at position #{injected_rank + 1}"
     else:
-        change_summary = f"New task '{new_task.title}' injected at position #{injected_rank + 1}"
+        change_summary = (
+            f"New task '{new_task.title}' injected at position #{injected_rank + 1}"
+        )
 
     return all_ranked, change_summary
 
@@ -157,7 +205,7 @@ async def reprioritize(
 def _build_ranked_list(tasks: list[RankedTask]) -> list[RankedTask]:
     return [
         RankedTask(
-            **t.model_dump(exclude={'rank', 'score', 'rationale', 'score_breakdown'}),
+            **t.model_dump(exclude={"rank", "score", "rationale", "score_breakdown"}),
             rank=i + 1,
             score=t.score or 0.0,
             rationale=t.rationale or "",

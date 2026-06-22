@@ -50,9 +50,7 @@ def _compute_weekly_metrics(daily_plans: list[dict[str, Any]]) -> dict[str, Any]
     }
 
 
-async def generate_weekly_summary(
-    daily_plans: list[dict[str, Any]]
-) -> str:
+async def generate_weekly_summary(daily_plans: list[dict[str, Any]]) -> str:
     if not daily_plans:
         return (
             "## Accomplished This Week\n\n"
@@ -92,9 +90,12 @@ async def generate_weekly_summary(
                 "## In Progress / Carried Over\n\n"
                 f"**{metrics['total_unique_tasks']}** unique task(s) tracked.\n\n"
                 "## Blockers & Deferred\n\n"
-                + (f"{len(metrics['active_blockers'])} blocker(s):\n" + "\n".join(f"- {b}" for b in metrics['active_blockers'])
-                   if metrics['active_blockers']
-                   else "No blockers recorded.")
+                + (
+                    f"{len(metrics['active_blockers'])} blocker(s):\n"
+                    + "\n".join(f"- {b}" for b in metrics["active_blockers"])
+                    if metrics["active_blockers"]
+                    else "No blockers recorded."
+                )
             )
         return summary
     except Exception:
@@ -104,7 +105,10 @@ async def generate_weekly_summary(
             "## In Progress / Carried Over\n\n"
             f"**{metrics['total_unique_tasks']}** unique task(s) tracked.\n\n"
             "## Blockers & Deferred\n\n"
-            + (f"{len(metrics['active_blockers'])} blocker(s):\n" + "\n".join(f"- {b}" for b in metrics['active_blockers'])
-               if metrics['active_blockers']
-               else "No blockers recorded.")
+            + (
+                f"{len(metrics['active_blockers'])} blocker(s):\n"
+                + "\n".join(f"- {b}" for b in metrics["active_blockers"])
+                if metrics["active_blockers"]
+                else "No blockers recorded."
+            )
         )

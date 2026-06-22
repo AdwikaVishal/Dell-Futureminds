@@ -1,6 +1,6 @@
 export type SourceType = "jira" | "defect" | "email" | "transcript" | "injected" | "servicenow" | "github" | "slack";
 export type Priority = "P0" | "P1" | "P2" | "P3";
-export type TaskStatus = "open" | "in_progress" | "blocked" | "done";
+export type TaskStatus = "open" | "in_progress" | "blocked" | "done" | "deferred";
 
 export type Task = {
   id: string;
@@ -143,6 +143,21 @@ export type MetricsSummary = {
   has_plan: boolean;
 };
 
+export type ExtractionItem = {
+  task_id: string;
+  raw_text: string;
+  title: string;
+  source_type: SourceType;
+  source: string;
+  confidence?: number | null;
+  priority?: Priority | null;
+  deadline?: string | null;
+  status?: string;
+  source_sentence?: string | null;
+  grounded?: boolean | null;
+  grounding_confidence?: number | null;
+};
+
 export type DashboardResponse = {
   plan: DailyPlan;
   dependency_analysis: {
@@ -180,6 +195,19 @@ export type UnblockingRecommendation = {
   suggestion: string;
 };
 
+export type DedupGroup = {
+  id?: string;
+  merged_count: number;
+  match_confidence: number;
+  reasoning: string;
+  tasks: { id: string; title: string; source: string; priority?: Priority | null; status?: string; deadline?: string | null; owner?: string | null }[];
+};
+
+export type WebSocketEvent = {
+  event: string;
+  data: unknown;
+};
+
 const API_BASE = "";
 
 async function jsonFetch<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
@@ -205,12 +233,14 @@ export async function getPlan(): Promise<DailyPlan> {
   return jsonFetch<DailyPlan>(`${API_BASE}/api/plan`);
 }
 
-export async function getTasks(params?: { source_type?: string; priority?: string; status?: string }): Promise<Task[]> {
+export async function getTasks(params?: { source_type?: string; priority?: string; status?: string; limit?: number; offset?: number }): Promise<{ tasks: Task[]; total: number }> {
   const url = new URL(`${API_BASE}/api/tasks`, window.location.origin);
   if (params?.source_type) url.searchParams.set("source_type", params.source_type);
   if (params?.priority) url.searchParams.set("priority", params.priority);
   if (params?.status) url.searchParams.set("status", params.status);
-  return jsonFetch<Task[]>(url.toString());
+  if (params?.limit) url.searchParams.set("limit", String(params.limit));
+  if (params?.offset) url.searchParams.set("offset", String(params.offset));
+  return jsonFetch<{ tasks: Task[]; total: number }>(url.toString());
 }
 
 export async function getDashboard(): Promise<DashboardResponse> {
@@ -243,7 +273,7 @@ export async function getMetrics(): Promise<MetricsSummary> {
   return jsonFetch<MetricsSummary>(`${API_BASE}/api/metrics`);
 }
 
-export async function getRecentExtractions(): Promise<{ extractions: any[]; total: number }> {
+export async function getRecentExtractions(): Promise<{ extractions: ExtractionItem[]; total: number }> {
   return jsonFetch(`${API_BASE}/api/extractions/recent`);
 }
 
@@ -262,11 +292,72 @@ export async function getDependencyAnalysis(): Promise<any> {
   return jsonFetch(`${API_BASE}/api/dependency-analysis`);
 }
 
+export async function getDedupGroups(): Promise<{ groups: DedupGroup[] }> {
+  return jsonFetch(`${API_BASE}/api/dedup-groups`);
+}
+
+export async function convertHiddenTask(req: { task_id: string; title?: string; priority?: Priority | null; deadline?: string | null }): Promise<{ status: string; task_id: string; title: string }> {
+  return jsonFetch(`${API_BASE}/api/hidden-tasks/convert`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
 export async function getMemoryPreferences(): Promise<{ preferences: Record<string, string> }> {
   return jsonFetch(`${API_BASE}/api/memory/preferences`);
 }
 
-type WsCallback = (event: { event: string; data: unknown }) => void;
+export async function getTeamMetrics(): Promise<{ teams: Record<string, any> }> {
+  return jsonFetch(`${API_BASE}/api/team-metrics`);
+}
+
+export async function updateTask(taskId: string, req: Partial<{ title: string; description: string; priority: Priority | null; status: TaskStatus; deadline: string | null; owner: string | null; assignee: string | null; team: string | null }>): Promise<{ status: string; task: Task }> {
+  return jsonFetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: "PUT",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function createTask(req: { title: string; description?: string; source_type?: SourceType; priority?: Priority | null; status?: TaskStatus; deadline?: string | null; owner?: string | null; assignee?: string | null; team?: string | null }): Promise<{ status: string; task: Task }> {
+  return jsonFetch(`${API_BASE}/api/tasks`, {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function deleteTask(taskId: string): Promise<{ status: string; task_id: string; title: string }> {
+  return jsonFetch(`${API_BASE}/api/tasks/${taskId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getA2aStatus(): Promise<{ status: string; agent_id: string; agents_connected: number; agents: any[] }> {
+  return jsonFetch(`${API_BASE}/api/a2a/status`);
+}
+
+export async function reorderTasks(taskIds: string[]): Promise<{ status: string; count: number }> {
+  return jsonFetch(`${API_BASE}/api/tasks/reorder`, {
+    method: "PUT",
+    body: JSON.stringify({ task_ids: taskIds }),
+  });
+}
+
+export async function getHealth(): Promise<{
+  status: string;
+  version: string;
+  jira_connected: boolean;
+  github_connected: boolean;
+  grok_connected: boolean;
+  redis_connected: boolean;
+  database_connected: boolean;
+  task_count: number;
+  last_sync: string | null;
+  connectors: ConnectorStatus[];
+}> {
+  return jsonFetch(`${API_BASE}/api/health`);
+}
+
+type WsCallback = (event: WebSocketEvent) => void;
 
 let _sharedWs: WebSocket | null = null;
 let _wsCallbacks = new Set<WsCallback>();
@@ -287,7 +378,7 @@ function _startWs(): void {
 
   ws.onmessage = (msg) => {
     try {
-      const event = JSON.parse(msg.data) as { event: string; data: unknown };
+      const event = JSON.parse(msg.data) as WebSocketEvent;
       _wsCallbacks.forEach((cb) => cb(event));
     } catch {
       console.warn("[WS] Failed to parse message:", msg.data);
@@ -308,8 +399,7 @@ function _startWs(): void {
     }
   };
 
-  ws.onerror = () => {
-  };
+  ws.onerror = () => {};
 }
 
 function _stopWs(): void {

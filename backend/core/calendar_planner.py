@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import logging
-import random
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 from core.state import _get_db, _ensure_db
 from models.task import RankedTask
@@ -13,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 class CalendarPlanner:
-
     @staticmethod
     def seed_simulated_events(days_ahead: int = 7):
         _ensure_db()
@@ -33,7 +30,9 @@ class CalendarPlanner:
             {
                 "event_id": "sprint_planning",
                 "title": "Sprint Planning",
-                "start": (now + timedelta(days=1)).replace(hour=10, minute=0).isoformat(),
+                "start": (now + timedelta(days=1))
+                .replace(hour=10, minute=0)
+                .isoformat(),
                 "end": (now + timedelta(days=1)).replace(hour=11, minute=0).isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
@@ -49,23 +48,33 @@ class CalendarPlanner:
             {
                 "event_id": "weekly_sync",
                 "title": "Weekly Team Sync",
-                "start": (now + timedelta(days=2)).replace(hour=14, minute=0).isoformat(),
-                "end": (now + timedelta(days=2)).replace(hour=14, minute=30).isoformat(),
+                "start": (now + timedelta(days=2))
+                .replace(hour=14, minute=0)
+                .isoformat(),
+                "end": (now + timedelta(days=2))
+                .replace(hour=14, minute=30)
+                .isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
             },
             {
                 "event_id": "friday_demo",
                 "title": "Stakeholder Demo",
-                "start": (now + timedelta(days=(4 - now.weekday()) % 7)).replace(hour=14, minute=0).isoformat(),
-                "end": (now + timedelta(days=(4 - now.weekday()) % 7)).replace(hour=15, minute=0).isoformat(),
+                "start": (now + timedelta(days=(4 - now.weekday()) % 7))
+                .replace(hour=14, minute=0)
+                .isoformat(),
+                "end": (now + timedelta(days=(4 - now.weekday()) % 7))
+                .replace(hour=15, minute=0)
+                .isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
             },
             {
                 "event_id": "customer_demo_prep",
                 "title": "Customer Demo Walkthrough Prep",
-                "start": (now + timedelta(days=1)).replace(hour=9, minute=0).isoformat(),
+                "start": (now + timedelta(days=1))
+                .replace(hour=9, minute=0)
+                .isoformat(),
                 "end": (now + timedelta(days=1)).replace(hour=9, minute=45).isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
@@ -73,31 +82,45 @@ class CalendarPlanner:
             {
                 "event_id": "lunch_friday",
                 "title": "Team Lunch",
-                "start": (now + timedelta(days=(4 - now.weekday()) % 7)).replace(hour=13, minute=0).isoformat(),
-                "end": (now + timedelta(days=(4 - now.weekday()) % 7)).replace(hour=14, minute=0).isoformat(),
+                "start": (now + timedelta(days=(4 - now.weekday()) % 7))
+                .replace(hour=13, minute=0)
+                .isoformat(),
+                "end": (now + timedelta(days=(4 - now.weekday()) % 7))
+                .replace(hour=14, minute=0)
+                .isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
             },
             {
                 "event_id": "design_review",
                 "title": "Design Review: Onboarding Flow",
-                "start": (now + timedelta(days=2)).replace(hour=11, minute=0).isoformat(),
-                "end": (now + timedelta(days=2)).replace(hour=11, minute=30).isoformat(),
+                "start": (now + timedelta(days=2))
+                .replace(hour=11, minute=0)
+                .isoformat(),
+                "end": (now + timedelta(days=2))
+                .replace(hour=11, minute=30)
+                .isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
             },
             {
                 "event_id": "weekly_sync_pm",
                 "title": "1:1 with PM",
-                "start": (now + timedelta(days=1)).replace(hour=15, minute=0).isoformat(),
-                "end": (now + timedelta(days=1)).replace(hour=15, minute=30).isoformat(),
+                "start": (now + timedelta(days=1))
+                .replace(hour=15, minute=0)
+                .isoformat(),
+                "end": (now + timedelta(days=1))
+                .replace(hour=15, minute=30)
+                .isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
             },
             {
                 "event_id": "sprint_retro",
                 "title": "Sprint Retrospective",
-                "start": (now + timedelta(days=3)).replace(hour=10, minute=0).isoformat(),
+                "start": (now + timedelta(days=3))
+                .replace(hour=10, minute=0)
+                .isoformat(),
                 "end": (now + timedelta(days=3)).replace(hour=11, minute=0).isoformat(),
                 "is_all_day": 0,
                 "source": "simulated",
@@ -109,7 +132,14 @@ class CalendarPlanner:
                 conn.execute(
                     """INSERT OR IGNORE INTO calendar_events (event_id, title, start_time, end_time, is_all_day, source)
                        VALUES (?, ?, ?, ?, ?, ?)""",
-                    (ev["event_id"], ev["title"], ev["start"], ev["end"], ev["is_all_day"], ev["source"]),
+                    (
+                        ev["event_id"],
+                        ev["title"],
+                        ev["start"],
+                        ev["end"],
+                        ev["is_all_day"],
+                        ev["source"],
+                    ),
                 )
             except Exception as e:
                 logger.warning("Failed to seed event %s: %s", ev["event_id"], e)
@@ -122,7 +152,9 @@ class CalendarPlanner:
         conn = _get_db()
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+        today_end = now.replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        ).isoformat()
         rows = conn.execute(
             "SELECT * FROM calendar_events WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC",
             (today_start, today_end),
@@ -139,7 +171,9 @@ class CalendarPlanner:
         except (ValueError, TypeError):
             dt = datetime.now(timezone.utc)
         day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-        day_end = dt.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+        day_end = dt.replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        ).isoformat()
         rows = conn.execute(
             "SELECT * FROM calendar_events WHERE start_time >= ? AND start_time <= ? ORDER BY start_time ASC",
             (day_start, day_end),
@@ -149,24 +183,38 @@ class CalendarPlanner:
 
     @staticmethod
     def get_unavailable_slots(date_str: str | None = None) -> list[dict[str, Any]]:
-        events = CalendarPlanner.get_todays_events() if date_str is None else CalendarPlanner.get_events_for_date(date_str)
+        events = (
+            CalendarPlanner.get_todays_events()
+            if date_str is None
+            else CalendarPlanner.get_events_for_date(date_str)
+        )
         slots = []
         for ev in events:
             if not ev["is_all_day"]:
-                slots.append({
-                    "start": ev["start_time"],
-                    "end": ev["end_time"],
-                    "title": ev["title"],
-                    "event_id": ev["event_id"],
-                })
+                slots.append(
+                    {
+                        "start": ev["start_time"],
+                        "end": ev["end_time"],
+                        "title": ev["title"],
+                        "event_id": ev["event_id"],
+                    }
+                )
         return slots
 
     @staticmethod
-    def generate_time_blocked_plan(ranked_tasks: list[RankedTask],
-                                   date_str: str | None = None) -> list[dict[str, Any]]:
-        events = CalendarPlanner.get_todays_events() if date_str is None else CalendarPlanner.get_events_for_date(date_str)
-        unavailable = [{"start": ev["start_time"], "end": ev["end_time"], "title": ev["title"]}
-                       for ev in events if not ev["is_all_day"]]
+    def generate_time_blocked_plan(
+        ranked_tasks: list[RankedTask], date_str: str | None = None
+    ) -> list[dict[str, Any]]:
+        events = (
+            CalendarPlanner.get_todays_events()
+            if date_str is None
+            else CalendarPlanner.get_events_for_date(date_str)
+        )
+        unavailable = [
+            {"start": ev["start_time"], "end": ev["end_time"], "title": ev["title"]}
+            for ev in events
+            if not ev["is_all_day"]
+        ]
 
         now = datetime.now(timezone.utc)
         if date_str:
@@ -180,7 +228,9 @@ class CalendarPlanner:
         lunch_end = now.replace(hour=13, minute=0, second=0, microsecond=0)
         day_end = now.replace(hour=18, minute=0, second=0, microsecond=0)
 
-        available_slots = CalendarPlanner._compute_available_slots(day_start, day_end, unavailable)
+        available_slots = CalendarPlanner._compute_available_slots(
+            day_start, day_end, unavailable
+        )
 
         time_blocked = []
         task_idx = 0
@@ -197,15 +247,17 @@ class CalendarPlanner:
                 task_duration = slot_minutes
 
             task = ranked_tasks[task_idx]
-            time_blocked.append({
-                "start": slot_start.isoformat(),
-                "end": (slot_start + timedelta(minutes=task_duration)).isoformat(),
-                "task_id": task.id,
-                "title": task.title,
-                "priority": task.priority,
-                "score": task.score,
-                "slot_type": "deep_work" if task_duration >= 45 else "quick_task",
-            })
+            time_blocked.append(
+                {
+                    "start": slot_start.isoformat(),
+                    "end": (slot_start + timedelta(minutes=task_duration)).isoformat(),
+                    "task_id": task.id,
+                    "title": task.title,
+                    "priority": task.priority,
+                    "score": task.score,
+                    "slot_type": "deep_work" if task_duration >= 45 else "quick_task",
+                }
+            )
             task_idx += 1
 
         context_switching_tasks = []
@@ -221,8 +273,9 @@ class CalendarPlanner:
         }
 
     @staticmethod
-    def _compute_available_slots(day_start: datetime, day_end: datetime,
-                                 unavailable: list[dict[str, Any]]) -> list[tuple[datetime, datetime]]:
+    def _compute_available_slots(
+        day_start: datetime, day_end: datetime, unavailable: list[dict[str, Any]]
+    ) -> list[tuple[datetime, datetime]]:
         busy_intervals = []
         for slot in unavailable:
             try:

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
 
 from dateutil import parser as dateparser
 
@@ -13,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 class DeterministicScoringEngine:
-
     WEIGHTS = {
         "severity": 0.25,
         "deadline_urgency": 0.20,
@@ -25,21 +22,25 @@ class DeterministicScoringEngine:
     }
 
     @classmethod
-    def compute_score(cls, task: Task, all_tasks: list[Task] | None = None) -> tuple[float, dict[str, float]]:
+    def compute_score(
+        cls, task: Task, all_tasks: list[Task] | None = None
+    ) -> tuple[float, dict[str, float]]:
         breakdown: dict[str, float] = {}
 
         breakdown["severity"] = cls._severity_score(task.priority)
         breakdown["deadline_urgency"] = cls._deadline_urgency(task.deadline)
-        breakdown["business_impact"] = cls._business_impact(task.vp_escalation, task.customer_facing)
+        breakdown["business_impact"] = cls._business_impact(
+            task.vp_escalation, task.customer_facing
+        )
         breakdown["dependency_impact"] = cls._dependency_impact(task, all_tasks or [])
         breakdown["customer_impact"] = cls._customer_impact(task)
         breakdown["escalation_weight"] = 100.0 if task.vp_escalation else 0.0
-        breakdown["team_blocking_weight"] = cls._team_blocking_weight(task, all_tasks or [])
+        breakdown["team_blocking_weight"] = cls._team_blocking_weight(
+            task, all_tasks or []
+        )
 
         score = sum(
-            breakdown[k] * cls.WEIGHTS[k]
-            for k in cls.WEIGHTS
-            if k in breakdown
+            breakdown[k] * cls.WEIGHTS[k] for k in cls.WEIGHTS if k in breakdown
         )
 
         return round(score, 1), breakdown
@@ -118,12 +119,19 @@ class DeterministicScoringEngine:
         return 0.0
 
     @classmethod
-    def generate_rationale(cls, task: Task, score: float, breakdown: dict[str, float]) -> str:
+    def generate_rationale(
+        cls, task: Task, score: float, breakdown: dict[str, float]
+    ) -> str:
         components_desc = " | ".join(
-            f"{k}={v:.0f}" for k, v in sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
+            f"{k}={v:.0f}"
+            for k, v in sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
         )
         biggest = max(breakdown, key=breakdown.get)
-        second_biggest = sorted(breakdown, key=breakdown.get, reverse=True)[1] if len(breakdown) > 1 else biggest
+        second_biggest = (
+            sorted(breakdown, key=breakdown.get, reverse=True)[1]
+            if len(breakdown) > 1
+            else biggest
+        )
         return (
             f"Score={score:.1f}: {components_desc}. "
             f"Weights: severity={cls.WEIGHTS['severity']}, deadline={cls.WEIGHTS['deadline_urgency']}, "
@@ -141,12 +149,16 @@ class DeterministicScoringEngine:
         ranked: list[RankedTask] = []
         for task in tasks:
             score, breakdown = cls.compute_score(task, tasks)
-            ranked.append(RankedTask(
-                **task.model_dump(exclude={'rank', 'score', 'rationale', 'score_breakdown'}),
-                score=score,
-                score_breakdown=breakdown,
-                rationale=cls.generate_rationale(task, score, breakdown),
-            ))
+            ranked.append(
+                RankedTask(
+                    **task.model_dump(
+                        exclude={"rank", "score", "rationale", "score_breakdown"}
+                    ),
+                    score=score,
+                    score_breakdown=breakdown,
+                    rationale=cls.generate_rationale(task, score, breakdown),
+                )
+            )
 
         ranked.sort(key=lambda t: t.score, reverse=True)
         for i, t in enumerate(ranked):

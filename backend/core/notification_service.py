@@ -1,11 +1,9 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from core.websocket_manager import ws_manager
-from core.state import store
 from models.task import Task
 
 logger = logging.getLogger(__name__)
@@ -72,7 +70,9 @@ class NotificationService:
         if self._debounce_timer:
             self._debounce_timer.cancel()
         if self._running_loop():
-            self._debounce_timer = asyncio.get_running_loop().call_later(0.5, self._coalesced_dispatch)
+            self._debounce_timer = asyncio.get_running_loop().call_later(
+                0.5, self._coalesced_dispatch
+            )
 
     @staticmethod
     def _running_loop() -> bool:

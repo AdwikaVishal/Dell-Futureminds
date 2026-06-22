@@ -6,9 +6,6 @@ Tests the complete chain:
 Run with:  pytest tests/test_e2e_integration.py -v
 """
 
-import json
-import os
-import time
 import pytest
 from datetime import datetime, timezone, timedelta
 
@@ -63,7 +60,9 @@ def test_normalizer_creates_tasks():
     from core.normalizer import normalize_all
 
     jira = [{"id": "J-1", "title": "Test jira", "priority": "P1", "status": "open"}]
-    defects = [{"id": "D-1", "title": "Test defect", "priority": "P2", "status": "open"}]
+    defects = [
+        {"id": "D-1", "title": "Test defect", "priority": "P2", "status": "open"}
+    ]
     emails = [{"id": "E-1", "subject": "Test email", "body": "Body text"}]
 
     tasks = normalize_all(jira, defects, emails)
@@ -78,9 +77,23 @@ def test_deduplicator_merges_duplicates():
     from core.deduplicator import deduplicate
 
     tasks = [
-        Task(id="T1", title="Fix login bug on Safari browser", source="T1", source_type="jira", raw_text="Fix login bug on Safari"),
-        Task(id="T2", title="Fix login bug on Safari", source="T2", source_type="email", raw_text="The login bug on Safari needs fixing"),
-        Task(id="T3", title="Build the main dashboard", source="T3", source_type="jira"),
+        Task(
+            id="T1",
+            title="Fix login bug on Safari browser",
+            source="T1",
+            source_type="jira",
+            raw_text="Fix login bug on Safari",
+        ),
+        Task(
+            id="T2",
+            title="Fix login bug on Safari",
+            source="T2",
+            source_type="email",
+            raw_text="The login bug on Safari needs fixing",
+        ),
+        Task(
+            id="T3", title="Build the main dashboard", source="T3", source_type="jira"
+        ),
     ]
     result = deduplicate(tasks)
     assert len(result) <= 2, "Similar tasks should be merged"
@@ -91,8 +104,13 @@ def test_deduplicator_merges_duplicates():
 def test_grounding_verification():
     from core.grounding import verify_grounding
 
-    task = Task(id="T1", title="Fix login bug", source="T1", source_type="jira",
-                raw_text="Fix login bug on Safari browser")
+    task = Task(
+        id="T1",
+        title="Fix login bug",
+        source="T1",
+        source_type="jira",
+        raw_text="Fix login bug on Safari browser",
+    )
     source_texts = {
         "email_1": "We need to fix the login bug on Safari browser ASAP",
     }
@@ -123,33 +141,59 @@ def test_alert_engine_e2e():
 
     now = datetime.now(timezone.utc)
     tasks = [
-        Task(id="T1", title="Urgent P0 deadline", source="T1", source_type="jira",
-             priority="P0", deadline=(now + timedelta(hours=2)).isoformat(),
-             status="open", owner="alice"),
-        Task(id="T2", title="Unassigned P1", source="T2", source_type="defect",
-             priority="P1", deadline=None, status="open", owner=None),
-        Task(id="T3", title="Overdue task", source="T3", source_type="email",
-             priority="P2", deadline=(now - timedelta(hours=4)).isoformat(),
-             status="open", owner="bob"),
+        Task(
+            id="T1",
+            title="Urgent P0 deadline",
+            source="T1",
+            source_type="jira",
+            priority="P0",
+            deadline=(now + timedelta(hours=2)).isoformat(),
+            status="open",
+            owner="alice",
+        ),
+        Task(
+            id="T2",
+            title="Unassigned P1",
+            source="T2",
+            source_type="defect",
+            priority="P1",
+            deadline=None,
+            status="open",
+            owner=None,
+        ),
+        Task(
+            id="T3",
+            title="Overdue task",
+            source="T3",
+            source_type="email",
+            priority="P2",
+            deadline=(now - timedelta(hours=4)).isoformat(),
+            status="open",
+            owner="bob",
+        ),
     ]
     alerts = check_alerts(tasks)
     assert len(alerts) > 0
     severities = [a.severity for a in alerts]
     assert "critical" in severities
-    assert any("deadline" in a.message.lower() or "past" in a.message.lower() for a in alerts)
+    assert any(
+        "deadline" in a.message.lower() or "past" in a.message.lower() for a in alerts
+    )
 
 
 @pytest.mark.asyncio
 async def test_weekly_summary_generates():
     from core.weekly_summary import generate_weekly_summary
 
-    plans = [{
-        "date": datetime.now(timezone.utc).isoformat(),
-        "top_3": [{"id": "T1", "title": "Fix auth bug", "status": "open"}],
-        "completed": [],
-        "deferred": [],
-        "blockers": [],
-    }]
+    plans = [
+        {
+            "date": datetime.now(timezone.utc).isoformat(),
+            "top_3": [{"id": "T1", "title": "Fix auth bug", "status": "open"}],
+            "completed": [],
+            "deferred": [],
+            "blockers": [],
+        }
+    ]
     summary = await generate_weekly_summary(plans)
     assert isinstance(summary, str)
     assert len(summary) > 0
@@ -162,14 +206,43 @@ def test_full_pipeline_plan_shape():
     from datetime import datetime, timezone
 
     tasks = [
-        RankedTask(id="R1", title="Top priority task", source="R1", source_type="jira",
-                   priority="P0", deadline=(datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
-                   status="open", owner="alice", rank=1, score=95.0, rationale="Highest urgency"),
-        RankedTask(id="R2", title="Second task", source="R2", source_type="email",
-                   priority="P2", deadline=None, status="open", rank=2, score=60.0, rationale="Medium"),
-        RankedTask(id="R3", title="Blocked task", source="R3", source_type="defect",
-                   priority="P1", deadline=None, status="blocked", rank=3, score=50.0,
-                   rationale="Blocked by external deps"),
+        RankedTask(
+            id="R1",
+            title="Top priority task",
+            source="R1",
+            source_type="jira",
+            priority="P0",
+            deadline=(datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+            status="open",
+            owner="alice",
+            rank=1,
+            score=95.0,
+            rationale="Highest urgency",
+        ),
+        RankedTask(
+            id="R2",
+            title="Second task",
+            source="R2",
+            source_type="email",
+            priority="P2",
+            deadline=None,
+            status="open",
+            rank=2,
+            score=60.0,
+            rationale="Medium",
+        ),
+        RankedTask(
+            id="R3",
+            title="Blocked task",
+            source="R3",
+            source_type="defect",
+            priority="P1",
+            deadline=None,
+            status="blocked",
+            rank=3,
+            score=50.0,
+            rationale="Blocked by external deps",
+        ),
     ]
 
     alerts = check_alerts(tasks)
@@ -187,11 +260,21 @@ def test_priority_p0_no_owner_alert():
     from core.alert_engine import check_alerts
 
     tasks = [
-        Task(id="T1", title="P0 no owner", source="T1", source_type="jira",
-             priority="P0", deadline=None, status="open", owner=None),
+        Task(
+            id="T1",
+            title="P0 no owner",
+            source="T1",
+            source_type="jira",
+            priority="P0",
+            deadline=None,
+            status="open",
+            owner=None,
+        ),
     ]
     alerts = check_alerts(tasks)
-    assert any("unassigned" in a.message.lower() for a in alerts if a.severity == "critical")
+    assert any(
+        "unassigned" in a.message.lower() for a in alerts if a.severity == "critical"
+    )
 
 
 def test_injected_task_matches_inject_request_schema():

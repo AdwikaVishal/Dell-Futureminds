@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,11 +37,14 @@ def get_ingestion_volume() -> list[dict[str, Any]]:
     volumes = []
     for r in rows:
         import json
+
         tasks = json.loads(r["tasks_json"])
-        volumes.append({
-            "timestamp": r["timestamp"],
-            "count": len(tasks),
-        })
+        volumes.append(
+            {
+                "timestamp": r["timestamp"],
+                "count": len(tasks),
+            }
+        )
     return volumes
 
 
@@ -64,13 +66,16 @@ def get_api_latency() -> dict[str, Any]:
     ).fetchone()
     conn.close()
     return {
-        "avg_latency_ms": round(avg_row["avg_latency"], 1) if avg_row and avg_row["avg_latency"] else 0,
+        "avg_latency_ms": round(avg_row["avg_latency"], 1)
+        if avg_row and avg_row["avg_latency"]
+        else 0,
         "total_calls": avg_row["total_calls"] if avg_row else 0,
     }
 
 
 def get_websocket_health() -> dict[str, Any]:
     from core.websocket_manager import ws_manager
+
     total = sum(len(v) for v in ws_manager._connections.values())
     channels = {k: len(v) for k, v in ws_manager._connections.items()}
     return {

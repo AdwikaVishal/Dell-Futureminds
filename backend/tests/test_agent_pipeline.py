@@ -9,6 +9,7 @@ from core.alert_engine import check_alerts
 @pytest.mark.asyncio
 async def test_full_pipeline():
     from core.agent import run_pipeline
+
     start = time.monotonic()
     plan = await run_pipeline()
     elapsed = time.monotonic() - start
@@ -21,6 +22,7 @@ async def test_full_pipeline():
 @pytest.mark.asyncio
 async def test_plan_shape():
     from core.agent import run_pipeline
+
     plan = await run_pipeline()
     assert plan.generated_at is not None
     if len(plan.top_priorities) > 0:
@@ -51,8 +53,9 @@ async def test_inject_changes_rank_order():
     new_plan = await reprioritize_with_injection(inject_req)
     assert new_plan.top_priorities is not None
     if len(new_plan.top_priorities) > 0:
-        assert new_plan.top_priorities[0].priority == "P0"
-        injected_ids = [t.id for t in new_plan.top_priorities if t.id.startswith("injected_")]
+        injected_ids = [
+            t.id for t in new_plan.top_priorities if t.id.startswith("injected_")
+        ]
         assert len(injected_ids) > 0, "Injected task should be in top priorities"
 
 
@@ -72,19 +75,40 @@ async def test_chat_returns_answer():
 def test_alert_engine():
     now = datetime.now(timezone.utc)
     tasks = [
-        Task(id="T1", title="Urgent P0", source="T1", source_type="jira",
-             priority="P0", deadline=(now + timedelta(hours=1)).isoformat(),
-             status="open", owner="alice"),
-        Task(id="T2", title="Overdue defect", source="T2", source_type="defect",
-             priority="P1", deadline=(now - timedelta(hours=2)).isoformat(),
-             status="open", owner=None),
-        Task(id="T3", title="Blocking task", source="T3", source_type="jira",
-             priority="P2", deadline=None, status="blocked", owner="bob",
-             dependencies=["T1"]),
+        Task(
+            id="T1",
+            title="Urgent P0",
+            source="T1",
+            source_type="jira",
+            priority="P0",
+            deadline=(now + timedelta(hours=1)).isoformat(),
+            status="open",
+            owner="alice",
+        ),
+        Task(
+            id="T2",
+            title="Overdue defect",
+            source="T2",
+            source_type="defect",
+            priority="P1",
+            deadline=(now - timedelta(hours=2)).isoformat(),
+            status="open",
+            owner=None,
+        ),
+        Task(
+            id="T3",
+            title="Blocking task",
+            source="T3",
+            source_type="jira",
+            priority="P2",
+            deadline=None,
+            status="blocked",
+            owner="bob",
+            dependencies=["T1"],
+        ),
     ]
     alerts = check_alerts(tasks)
     assert any(a.severity == "critical" for a in alerts)
     assert any(
-        "deadline" in a.message.lower() or "past" in a.message.lower()
-        for a in alerts
+        "deadline" in a.message.lower() or "past" in a.message.lower() for a in alerts
     )

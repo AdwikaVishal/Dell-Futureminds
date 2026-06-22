@@ -17,7 +17,9 @@ class SlackConnector(SourceConnector):
     def __init__(self) -> None:
         self._token = os.environ.get("SLACK_BOT_TOKEN", "")
         self._channels_str = os.environ.get("SLACK_CHANNELS", "#general")
-        self._channels = [ch.strip() for ch in self._channels_str.split(",") if ch.strip()]
+        self._channels = [
+            ch.strip() for ch in self._channels_str.split(",") if ch.strip()
+        ]
         self._client: Optional[httpx.AsyncClient] = None
         self._conversation_map: dict[str, str] = {}
 
@@ -56,7 +58,10 @@ class SlackConnector(SourceConnector):
         cursor: Optional[str] = None
         try:
             while True:
-                params: dict[str, Any] = {"types": "public_channel,private_channel", "limit": 200}
+                params: dict[str, Any] = {
+                    "types": "public_channel,private_channel",
+                    "limit": 200,
+                }
                 if cursor:
                     params["cursor"] = cursor
                 resp = await self._client.get("/conversations.list", params=params)
@@ -76,13 +81,47 @@ class SlackConnector(SourceConnector):
     def _load_simulated(self) -> list[dict[str, Any]]:
         import json
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "slack_samples.json"
+
+        path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "data"
+            / "slack_messages.json"
+        )
         if not path.exists():
             logger.warning("Simulated Slack data not found at %s", path)
             return []
         try:
             with open(path) as f:
-                return json.load(f)
+                raw = json.load(f)
+            normalized = []
+            for msg in raw:
+                sender_username = msg.get("sender", {}).get("username", "unknown") if isinstance(msg.get("sender"), dict) else msg.get("sender", "unknown")
+                is_dm = msg.get("channel", "").startswith("DM:")
+                channel_name = msg.get("channel", "#general")
+                is_direct_mention = msg.get("isDirectMention", False) or "@alex.chen" in msg.get("text", "")
+                normalized.append({
+                    "id": msg["messageId"],
+                    "title": f"Slack message in {channel_name}",
+                    "description": msg.get("text", "")[:200],
+                    "source": msg["messageId"],
+                    "source_type": "slack",
+                    "priority": "P1" if is_direct_mention and msg.get("hasActionItem") else "P2",
+                    "deadline": None,
+                    "owner": "alex.chen" if "@alex.chen" in msg.get("text", "") else None,
+                    "status": "open",
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": msg.get("text", ""),
+                    "channel": channel_name,
+                    "message_ts": msg.get("timestamp", ""),
+                    "sender": sender_username,
+                    "mentions": msg.get("mentions", []),
+                    "is_direct_mention": is_direct_mention,
+                    "has_action_item": msg.get("hasActionItem", False),
+                    "action_item_text": msg.get("actionItemText"),
+                })
+            logger.info("Loaded %d simulated Slack messages", len(normalized))
+            return normalized
         except Exception as e:
             logger.error("Failed to load simulated Slack data: %s", e)
             return []
@@ -120,10 +159,16 @@ class SlackConnector(SourceConnector):
                     if cursor:
                         params["cursor"] = cursor
 
-                    resp = await self._client.get("/conversations.history", params=params)
+                    resp = await self._client.get(
+                        "/conversations.history", params=params
+                    )
                     body = resp.json()
                     if not body.get("ok"):
-                        logger.warning("Failed to fetch history for %s: %s", channel_name, body.get("error"))
+                        logger.warning(
+                            "Failed to fetch history for %s: %s",
+                            channel_name,
+                            body.get("error"),
+                        )
                         break
 
                     for msg in body.get("messages", []):
@@ -131,32 +176,38 @@ class SlackConnector(SourceConnector):
                         if re.search(r"<@\w+>", text):
                             mentioned = re.findall(r"<@(\w+)>", text)
                             ts = msg.get("ts", "")
-                            results.append({
-                                "id": f"SL-{ts.replace('.', '')}",
-                                "title": f"Slack mention in {channel_name}",
-                                "description": text,
-                                "source": f"SL-{ts.replace('.', '')}",
-                                "source_type": "slack",
-                                "priority": "P2",
-                                "deadline": None,
-                                "owner": mentioned[0] if mentioned else None,
-                                "status": "open",
-                                "dependencies": [],
-                                "blocks": [],
-                                "raw_text": text,
-                                "channel": channel_name,
-                                "message_ts": ts,
-                            })
+                            results.append(
+                                {
+                                    "id": f"SL-{ts.replace('.', '')}",
+                                    "title": f"Slack mention in {channel_name}",
+                                    "description": text,
+                                    "source": f"SL-{ts.replace('.', '')}",
+                                    "source_type": "slack",
+                                    "priority": "P2",
+                                    "deadline": None,
+                                    "owner": mentioned[0] if mentioned else None,
+                                    "status": "open",
+                                    "dependencies": [],
+                                    "blocks": [],
+                                    "raw_text": text,
+                                    "channel": channel_name,
+                                    "message_ts": ts,
+                                }
+                            )
 
                     cursor = body.get("response_metadata", {}).get("next_cursor", "")
                     if not cursor:
                         break
             except Exception as e:
-                logger.error("Error fetching Slack messages from %s: %s", channel_name, e)
+                logger.error(
+                    "Error fetching Slack messages from %s: %s", channel_name, e
+                )
                 continue
 
         if not results:
-            logger.info("No Slack messages fetched from live API — using simulated data")
+            logger.info(
+                "No Slack messages fetched from live API — using simulated data"
+            )
             return self._load_simulated()
 
         self.last_sync = datetime.now(timezone.utc).isoformat()
@@ -166,22 +217,24 @@ class SlackConnector(SourceConnector):
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []
         for item in raw:
-            normalized.append({
-                "id": item["id"],
-                "title": item["title"],
-                "description": item.get("description", ""),
-                "source": item["id"],
-                "source_type": "slack",
-                "priority": item.get("priority", "P2"),
-                "deadline": item.get("deadline"),
-                "owner": item.get("owner"),
-                "status": item.get("status", "open"),
-                "dependencies": item.get("dependencies", []),
-                "blocks": item.get("blocks", []),
-                "raw_text": item.get("raw_text", ""),
-                "channel": item.get("channel", ""),
-                "message_ts": item.get("message_ts", ""),
-            })
+            normalized.append(
+                {
+                    "id": item["id"],
+                    "title": item["title"],
+                    "description": item.get("description", ""),
+                    "source": item["id"],
+                    "source_type": "slack",
+                    "priority": item.get("priority", "P2"),
+                    "deadline": item.get("deadline"),
+                    "owner": item.get("owner"),
+                    "status": item.get("status", "open"),
+                    "dependencies": item.get("dependencies", []),
+                    "blocks": item.get("blocks", []),
+                    "raw_text": item.get("raw_text", ""),
+                    "channel": item.get("channel", ""),
+                    "message_ts": item.get("message_ts", ""),
+                }
+            )
         return normalized
 
     async def health_check(self) -> bool:

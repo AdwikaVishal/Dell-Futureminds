@@ -1,19 +1,54 @@
-import json
+from __future__ import annotations
+
 import logging
-import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from core.database import (
+    save_state as db_save_state,
+    load_state as db_load_state,
+    save_trace as db_save_trace,
+    save_chat_log as db_save_chat_log,
+    save_feedback as db_save_feedback,
+    get_user_preference_boosts as db_get_user_preference_boosts,
+    get_daily_snapshots as db_get_daily_snapshots,
+    get_team_velocity as db_get_team_velocity,
+    get_recent_traces as db_get_recent_traces,
+)
 from models.task import Task, DailyPlan
 
 logger = logging.getLogger(__name__)
 
+# ── Synchronous SQLite fallback (kept for backward compat) ──
+
 DB_DIR = Path(__file__).resolve().parent.parent / "db"
 DB_PATH = str(DB_DIR / "taskpilot.db")
 SCHEMA_PATH = str(DB_DIR / "schema.sql")
+
+
+def _get_db() -> sqlite3.Connection:
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+    conn = _get_db()
+    conn.executescript(open(SCHEMA_PATH).read())
+    conn.commit()
+    conn.close()
+
+
+def _ensure_db():
+    if not DB_DIR.exists() or not Path(DB_PATH).exists():
+        init_db()
+
+
+# ── State Store ──
 
 
 class StateStore:
@@ -27,6 +62,7 @@ class StateStore:
         self.time_blocked_plan: Optional[list] = None
         self.highest_leverage_tasks: Optional[list] = None
         self.deferred_tasks: Optional[list] = None
+        self._startup_time = datetime.now(timezone.utc)
 
     def update(self, tasks: list[Task], plan: Optional[DailyPlan] = None):
         with self._lock:
@@ -57,26 +93,90 @@ class StateStore:
 store = StateStore()
 
 
-def _get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# ── Async wrappers (delegate to core.database) ──
 
 
-def init_db():
-    DB_DIR.mkdir(parents=True, exist_ok=True)
-    conn = _get_db()
-    conn.executescript(open(SCHEMA_PATH).read())
-    conn.commit()
-    conn.close()
+async def save_state(
+    tasks: list[Task], plan: Optional[DailyPlan] = None, status: str = "ok"
+):
+    try:
+        await db_save_state(tasks, plan, status)
+    except Exception as e:
+        logger.warning("Failed to save state async: %s", e)
+        # Fall back to sync
+        _save_state_sync(tasks, plan, status)
 
 
-def _ensure_db():
-    if not DB_DIR.exists() or not os.path.exists(DB_PATH):
-        init_db()
+async def load_state() -> tuple[list[Task], Optional[DailyPlan]]:
+    try:
+        return await db_load_state()
+    except Exception:
+        pass
+    try:
+        return _load_state_sync()
+    except Exception:
+        return [], None
 
 
-def save_state(tasks: list[Task], plan: Optional[DailyPlan] = None, status: str = "ok"):
+async def save_trace(
+    step_name: str, duration_ms: float, tokens_used: int = 0, status: str = "ok"
+):
+    try:
+        await db_save_trace(step_name, duration_ms, tokens_used, status)
+    except Exception:
+        _save_trace_sync(step_name, duration_ms, tokens_used, status)
+
+
+async def save_chat_log(question: str, answer: str, referenced_ids: list[str]):
+    try:
+        await db_save_chat_log(question, answer, referenced_ids)
+    except Exception:
+        _save_chat_log_sync(question, answer, referenced_ids)
+
+
+async def save_feedback(task_id: str, action: str, preference: str):
+    try:
+        await db_save_feedback(task_id, action, preference)
+    except Exception:
+        _save_feedback_sync(task_id, action, preference)
+
+
+async def get_user_preference_boosts() -> dict[str, float]:
+    try:
+        return await db_get_user_preference_boosts()
+    except Exception:
+        return _get_user_preference_boosts_sync()
+
+
+async def get_daily_snapshots(days: int = 7) -> list[dict[str, Any]]:
+    try:
+        return await db_get_daily_snapshots(days)
+    except Exception:
+        return _get_daily_snapshots_sync(days)
+
+
+async def get_team_velocity(days: int = 7) -> dict[str, Any]:
+    try:
+        return await db_get_team_velocity(days)
+    except Exception:
+        return _get_team_velocity_sync(days)
+
+
+async def get_recent_traces(limit: int = 50) -> list[dict]:
+    try:
+        return await db_get_recent_traces(limit)
+    except Exception:
+        return _get_recent_traces_sync(limit)
+
+
+# ── Sync fallback implementations ──
+
+
+def _save_state_sync(
+    tasks: list[Task], plan: Optional[DailyPlan] = None, status: str = "ok"
+):
+    import json
+
     _ensure_db()
     conn = _get_db()
     tasks_json = json.dumps([t.model_dump(mode="json") for t in tasks], default=str)
@@ -89,7 +189,9 @@ def save_state(tasks: list[Task], plan: Optional[DailyPlan] = None, status: str 
     conn.close()
 
 
-def load_state() -> tuple[list[Task], Optional[DailyPlan]]:
+def _load_state_sync() -> tuple[list[Task], Optional[DailyPlan]]:
+    import json
+
     _ensure_db()
     conn = _get_db()
     row = conn.execute(
@@ -103,32 +205,29 @@ def load_state() -> tuple[list[Task], Optional[DailyPlan]]:
     return tasks, plan
 
 
-def save_chat_log(question: str, answer: str, referenced_ids: list[str]):
-    _ensure_db()
-    conn = _get_db()
-    conn.execute(
-        "INSERT INTO chat_log (timestamp, question, answer, referenced_task_ids) VALUES (?, ?, ?, ?)",
-        (datetime.now(timezone.utc).isoformat(), question, answer, ",".join(referenced_ids)),
-    )
-    conn.commit()
-    conn.close()
-
-
-def save_trace(step_name: str, duration_ms: float, tokens_used: int = 0, status: str = "ok"):
+def _save_trace_sync(
+    step_name: str, duration_ms: float, tokens_used: int = 0, status: str = "ok"
+):
     try:
         _ensure_db()
         conn = _get_db()
         conn.execute(
             "INSERT INTO traces (timestamp, step_name, duration_ms, tokens_used, status) VALUES (?, ?, ?, ?, ?)",
-            (datetime.now(timezone.utc).isoformat(), step_name, duration_ms, tokens_used, status),
+            (
+                datetime.now(timezone.utc).isoformat(),
+                step_name,
+                duration_ms,
+                tokens_used,
+                status,
+            ),
         )
         conn.commit()
         conn.close()
     except Exception as e:
-        logging.getLogger(__name__).warning("Failed to save trace: %s", e)
+        logger.debug("Failed to save trace sync: %s", e)
 
 
-def get_recent_traces(limit: int = 50) -> list[dict]:
+def _get_recent_traces_sync(limit: int = 50) -> list[dict]:
     try:
         _ensure_db()
         conn = _get_db()
@@ -141,7 +240,23 @@ def get_recent_traces(limit: int = 50) -> list[dict]:
         return []
 
 
-def save_feedback(task_id: str, action: str, preference: str):
+def _save_chat_log_sync(question: str, answer: str, referenced_ids: list[str]):
+    _ensure_db()
+    conn = _get_db()
+    conn.execute(
+        "INSERT INTO chat_log (timestamp, question, answer, referenced_task_ids) VALUES (?, ?, ?, ?)",
+        (
+            datetime.now(timezone.utc).isoformat(),
+            question,
+            answer,
+            ",".join(referenced_ids),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def _save_feedback_sync(task_id: str, action: str, preference: str):
     _ensure_db()
     conn = _get_db()
     conn.execute(
@@ -152,11 +267,11 @@ def save_feedback(task_id: str, action: str, preference: str):
     conn.close()
 
 
-def get_user_preference_boosts() -> dict[str, float]:
+def _get_user_preference_boosts_sync() -> dict[str, float]:
     _ensure_db()
     conn = _get_db()
     rows = conn.execute("""
-        SELECT user_preference, 
+        SELECT user_preference,
                SUM(CASE WHEN action = 'upvote' THEN 1 WHEN action = 'downvote' THEN -1 ELSE 0 END) as net
         FROM user_feedback
         GROUP BY user_preference
@@ -173,10 +288,13 @@ def get_user_preference_boosts() -> dict[str, float]:
     return boosts
 
 
-def get_daily_snapshots(days: int = 7) -> list[dict[str, Any]]:
+def _get_daily_snapshots_sync(days: int = 7) -> list[dict[str, Any]]:
+    import json
+
     _ensure_db()
     conn = _get_db()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT date(timestamp) as day,
                MAX(timestamp) as last_run_ts,
                tasks_json,
@@ -185,7 +303,9 @@ def get_daily_snapshots(days: int = 7) -> list[dict[str, Any]]:
         WHERE timestamp >= date('now', '-' || ? || ' days')
         GROUP BY date(timestamp)
         ORDER BY day ASC
-    """, (days,)).fetchall()
+    """,
+        (days,),
+    ).fetchall()
     conn.close()
 
     if not rows:
@@ -228,7 +348,8 @@ def get_daily_snapshots(days: int = 7) -> list[dict[str, Any]]:
 
         daily["blockers"] = [
             {"id": t["id"], "title": t.get("title", ""), "blocked_by": ""}
-            for t in tasks if t.get("status") == "blocked"
+            for t in tasks
+            if t.get("status") == "blocked"
         ]
 
         daily_plans.append(daily)
@@ -237,17 +358,22 @@ def get_daily_snapshots(days: int = 7) -> list[dict[str, Any]]:
     return daily_plans
 
 
-def get_team_velocity(days: int = 7) -> dict[str, Any]:
+def _get_team_velocity_sync(days: int = 7) -> dict[str, Any]:
+    import json
+
     _ensure_db()
     conn = _get_db()
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT date(timestamp) as day,
                tasks_json
         FROM runs
         WHERE timestamp >= date('now', '-' || ? || ' days')
         GROUP BY date(timestamp)
         ORDER BY day ASC
-    """, (days,)).fetchall()
+    """,
+        (days,),
+    ).fetchall()
     conn.close()
 
     daily_counts = []

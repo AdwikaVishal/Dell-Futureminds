@@ -4,19 +4,22 @@ import logging
 from collections import defaultdict, deque
 from typing import Any
 
-from models.task import Task, RankedTask
+from models.task import Task
 
 logger = logging.getLogger(__name__)
 
 
 class DependencyAnalyzer:
-
     @staticmethod
-    def build_adjacency_lists(tasks: list[Task]) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-        depends_on: dict[str, list[str]] = {t.id: list(t.dependencies or []) for t in tasks}
+    def build_adjacency_lists(
+        tasks: list[Task],
+    ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        depends_on: dict[str, list[str]] = {
+            t.id: list(t.dependencies or []) for t in tasks
+        }
         blocked_by: dict[str, list[str]] = defaultdict(list)
         for t in tasks:
-            for dep_id in (t.dependencies or []):
+            for dep_id in t.dependencies or []:
                 blocked_by[dep_id].append(t.id)
         return depends_on, blocked_by
 
@@ -98,7 +101,9 @@ class DependencyAnalyzer:
         return impacts
 
     @staticmethod
-    def find_highest_leverage_tasks(tasks: list[Task], top_n: int = 3) -> list[dict[str, Any]]:
+    def find_highest_leverage_tasks(
+        tasks: list[Task], top_n: int = 3
+    ) -> list[dict[str, Any]]:
         impacts = DependencyAnalyzer.compute_blocking_impact(tasks)
         open_tasks = [t for t in tasks if t.status != "done"]
         scored = []
@@ -109,14 +114,16 @@ class DependencyAnalyzer:
                 leverage_score += 20
             if t.vp_escalation:
                 leverage_score += 15
-            scored.append({
-                "task_id": t.id,
-                "title": t.title,
-                "leverage_score": round(leverage_score, 1),
-                "blocks_directly": imp.get("blocks_directly", 0),
-                "blocks_transitively": imp.get("blocks_transitively", 0),
-                "blocked_by": imp.get("blocked_by_names", []),
-            })
+            scored.append(
+                {
+                    "task_id": t.id,
+                    "title": t.title,
+                    "leverage_score": round(leverage_score, 1),
+                    "blocks_directly": imp.get("blocks_directly", 0),
+                    "blocks_transitively": imp.get("blocks_transitively", 0),
+                    "blocked_by": imp.get("blocked_by_names", []),
+                }
+            )
 
         scored.sort(key=lambda x: x["leverage_score"], reverse=True)
         return scored[:top_n]
@@ -132,26 +139,38 @@ class DependencyAnalyzer:
                 for dep_id in t.dependencies:
                     dep_task = task_map.get(dep_id)
                     if dep_task:
-                        recommendations.append({
-                            "blocked_task_id": t.id,
-                            "blocked_task_title": t.title,
-                            "blocking_task_id": dep_id,
-                            "blocking_task_title": dep_task.title,
-                            "blocking_task_status": dep_task.status,
-                            "suggestion": f"Unblock '{t.title}' by completing/resolving '{dep_task.title}'",
-                        })
+                        recommendations.append(
+                            {
+                                "blocked_task_id": t.id,
+                                "blocked_task_title": t.title,
+                                "blocking_task_id": dep_id,
+                                "blocking_task_title": dep_task.title,
+                                "blocking_task_status": dep_task.status,
+                                "suggestion": f"Unblock '{t.title}' by completing/resolving '{dep_task.title}'",
+                            }
+                        )
 
         critical_path = DependencyAnalyzer.find_critical_path(tasks)
         if len(critical_path) >= 2:
-            last_title = task_map[critical_path[-1]].title if critical_path[-1] in task_map else critical_path[-1]
-            first_title = task_map[critical_path[0]].title if critical_path[0] in task_map else critical_path[0]
-            recommendations.append({
-                "blocked_task_id": critical_path[-1],
-                "blocked_task_title": last_title,
-                "blocking_task_id": critical_path[0],
-                "blocking_task_title": first_title,
-                "blocking_task_status": "open",
-                "suggestion": f"Critical path: start with '{first_title}' to unlock downstream tasks",
-            })
+            last_title = (
+                task_map[critical_path[-1]].title
+                if critical_path[-1] in task_map
+                else critical_path[-1]
+            )
+            first_title = (
+                task_map[critical_path[0]].title
+                if critical_path[0] in task_map
+                else critical_path[0]
+            )
+            recommendations.append(
+                {
+                    "blocked_task_id": critical_path[-1],
+                    "blocked_task_title": last_title,
+                    "blocking_task_id": critical_path[0],
+                    "blocking_task_title": first_title,
+                    "blocking_task_status": "open",
+                    "suggestion": f"Critical path: start with '{first_title}' to unlock downstream tasks",
+                }
+            )
 
         return recommendations

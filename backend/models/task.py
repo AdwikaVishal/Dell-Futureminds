@@ -1,6 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Literal, Any
-from datetime import datetime
+from typing import Optional, Literal
 
 
 class Task(BaseModel):
@@ -8,11 +7,20 @@ class Task(BaseModel):
     title: str
     description: str = ""
     source: str
-    source_type: Literal["jira", "defect", "email", "transcript", "injected", "servicenow", "github", "slack"]
+    source_type: Literal[
+        "jira",
+        "defect",
+        "email",
+        "transcript",
+        "injected",
+        "servicenow",
+        "github",
+        "slack",
+    ]
     priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
     deadline: Optional[str] = None
     owner: Optional[str] = None
-    status: Literal["open", "in_progress", "blocked", "done"] = "open"
+    status: Literal["open", "in_progress", "blocked", "done", "deferred"] = "open"
     dependencies: list[str] = []
     blocks: list[str] = []
     raw_text: str = ""
@@ -71,10 +79,65 @@ class ChatResponse(BaseModel):
 class InjectRequest(BaseModel):
     title: str
     description: str = ""
-    source_type: Literal["jira", "defect", "email", "transcript", "injected", "servicenow", "github", "slack"] = "injected"
+    source_type: Literal[
+        "jira",
+        "defect",
+        "email",
+        "transcript",
+        "injected",
+        "servicenow",
+        "github",
+        "slack",
+    ] = "injected"
     priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
     deadline: Optional[str] = None
     owner: Optional[str] = None
+
+
+class ConvertHiddenRequest(BaseModel):
+    task_id: str
+    title: Optional[str] = None
+    priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
+    deadline: Optional[str] = None
+
+
+class CreateTaskRequest(BaseModel):
+    title: str
+    description: Optional[str] = None
+    source_type: Optional[
+        Literal[
+            "jira",
+            "defect",
+            "email",
+            "transcript",
+            "injected",
+            "servicenow",
+            "github",
+            "slack",
+        ]
+    ] = "injected"
+    source: Optional[str] = "manual"
+    priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
+    status: Optional[Literal["open", "in_progress", "blocked", "done", "deferred"]] = (
+        "open"
+    )
+    deadline: Optional[str] = None
+    owner: Optional[str] = None
+    assignee: Optional[str] = None
+    team: Optional[str] = None
+
+
+class UpdateTaskRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[Literal["P0", "P1", "P2", "P3"]] = None
+    status: Optional[Literal["open", "in_progress", "blocked", "done", "deferred"]] = (
+        None
+    )
+    deadline: Optional[str] = None
+    owner: Optional[str] = None
+    assignee: Optional[str] = None
+    team: Optional[str] = None
 
 
 class DashboardResponse(BaseModel):

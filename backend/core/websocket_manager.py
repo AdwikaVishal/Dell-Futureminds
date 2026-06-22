@@ -1,7 +1,6 @@
-import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import WebSocket
 
@@ -15,7 +14,11 @@ class WebSocketManager:
     async def connect(self, websocket: WebSocket, channel: str = "broadcast"):
         await websocket.accept()
         self._connections.setdefault(channel, set()).add(websocket)
-        logger.info("WebSocket connected to channel '%s' (%d total)", channel, len(self._connections[channel]))
+        logger.info(
+            "WebSocket connected to channel '%s' (%d total)",
+            channel,
+            len(self._connections[channel]),
+        )
 
     def disconnect(self, websocket: WebSocket, channel: str = "broadcast"):
         self._connections.get(channel, set()).discard(websocket)

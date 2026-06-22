@@ -51,7 +51,12 @@ class GitHubConnector(SourceConnector):
     def _load_simulated(self) -> list[dict[str, Any]]:
         import json
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "github_samples.json"
+
+        path = (
+            Path(__file__).resolve().parent.parent.parent
+            / "data"
+            / "github_samples.json"
+        )
         if not path.exists():
             logger.warning("Simulated GitHub data not found at %s", path)
             return []
@@ -131,7 +136,9 @@ class GitHubConnector(SourceConnector):
             self.error = str(e)
             return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching GitHub items: %s — falling back to simulated data", e)
+            logger.error(
+                "Error fetching GitHub items: %s — falling back to simulated data", e
+            )
             self.error = str(e)
             return self._load_simulated()
 
@@ -162,27 +169,31 @@ class GitHubConnector(SourceConnector):
 
             body = issue.get("body") or ""
 
-            normalized.append({
-                "id": issue_id,
-                "title": issue.get("title", ""),
-                "description": body,
-                "source": issue_id,
-                "source_type": "github",
-                "priority": priority,
-                "deadline": deadline,
-                "owner": assignee,
-                "status": issue.get("state", "open"),
-                "dependencies": [],
-                "blocks": [],
-                "raw_text": body,
-                "repo": f"{self._owner}/{self._repo}",
-                "issue_number": number,
-                "is_pull_request": is_pr,
-                "pr_state": issue.get("state", "open") if is_pr else None,
-                "mergeable": issue.get("mergeable") if is_pr else None,
-                "draft": issue.get("draft", False) if is_pr else None,
-                "review_comments": issue.get("review_comments", 0) if is_pr else None,
-            })
+            normalized.append(
+                {
+                    "id": issue_id,
+                    "title": issue.get("title", ""),
+                    "description": body,
+                    "source": issue_id,
+                    "source_type": "github",
+                    "priority": priority,
+                    "deadline": deadline,
+                    "owner": assignee,
+                    "status": issue.get("state", "open"),
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": body,
+                    "repo": f"{self._owner}/{self._repo}",
+                    "issue_number": number,
+                    "is_pull_request": is_pr,
+                    "pr_state": issue.get("state", "open") if is_pr else None,
+                    "mergeable": issue.get("mergeable") if is_pr else None,
+                    "draft": issue.get("draft", False) if is_pr else None,
+                    "review_comments": issue.get("review_comments", 0)
+                    if is_pr
+                    else None,
+                }
+            )
         return normalized
 
     async def health_check(self) -> bool:

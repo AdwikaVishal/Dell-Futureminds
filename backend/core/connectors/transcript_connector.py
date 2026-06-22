@@ -73,14 +73,18 @@ class TranscriptConnector(SourceConnector):
                 self.error = str(e)
                 return False
 
-        logger.warning("No transcript API key configured (FIREFLIES_API_KEY or OTTER_API_KEY)")
+        logger.warning(
+            "No transcript API key configured (FIREFLIES_API_KEY or OTTER_API_KEY)"
+        )
         self.connected = False
         self.error = "Missing transcript API key"
         return False
 
     async def fetch_tasks(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         if not self._client or not self.connected:
-            logger.info("Transcript connector not connected — using simulated transcript data")
+            logger.info(
+                "Transcript connector not connected — using simulated transcript data"
+            )
             return self._load_simulated()
 
         if self._provider == "fireflies":
@@ -89,7 +93,9 @@ class TranscriptConnector(SourceConnector):
             return await self._fetch_otter(since)
         return self._load_simulated()
 
-    async def _fetch_fireflies(self, since: Optional[str] = None) -> list[dict[str, Any]]:
+    async def _fetch_fireflies(
+        self, since: Optional[str] = None
+    ) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         cursor: Optional[str] = None
 
@@ -99,7 +105,8 @@ class TranscriptConnector(SourceConnector):
 
         try:
             while True:
-                query = """
+                query = (
+                    """
                 query($cursor: String) {
                     transcripts(cursor: $cursor %s, limit: 50) {
                         title
@@ -111,7 +118,9 @@ class TranscriptConnector(SourceConnector):
                         }
                     }
                 }
-                """ % date_filter
+                """
+                    % date_filter
+                )
 
                 variables: dict[str, Any] = {}
                 if cursor:
@@ -136,24 +145,28 @@ class TranscriptConnector(SourceConnector):
                     cursor = None
 
                 for t in items:
-                    full_text = " ".join(s.get("text", "") for s in t.get("sentences", []))
+                    full_text = " ".join(
+                        s.get("text", "") for s in t.get("sentences", [])
+                    )
                     meeting_id = t.get("id", "")
-                    results.append({
-                        "id": meeting_id,
-                        "title": t.get("title", "Meeting Transcript"),
-                        "description": full_text[:300],
-                        "source": meeting_id,
-                        "source_type": "transcript",
-                        "priority": None,
-                        "deadline": None,
-                        "owner": None,
-                        "status": "open",
-                        "dependencies": [],
-                        "blocks": [],
-                        "raw_text": full_text,
-                        "meeting_date": t.get("date", ""),
-                        "participants": t.get("participants", []),
-                    })
+                    results.append(
+                        {
+                            "id": meeting_id,
+                            "title": t.get("title", "Meeting Transcript"),
+                            "description": full_text[:300],
+                            "source": meeting_id,
+                            "source_type": "transcript",
+                            "priority": None,
+                            "deadline": None,
+                            "owner": None,
+                            "status": "open",
+                            "dependencies": [],
+                            "blocks": [],
+                            "raw_text": full_text,
+                            "meeting_date": t.get("date", ""),
+                            "participants": t.get("participants", []),
+                        }
+                    )
 
                 if not cursor:
                     break
@@ -177,7 +190,9 @@ class TranscriptConnector(SourceConnector):
                 if since:
                     params["start_date"] = since
 
-                resp = await self._client.get("https://otter.ai/api/v1/transcripts", params=params)
+                resp = await self._client.get(
+                    "https://otter.ai/api/v1/transcripts", params=params
+                )
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -188,22 +203,25 @@ class TranscriptConnector(SourceConnector):
                 for t in items:
                     meeting_id = t.get("id", "")
                     full_text = t.get("text", "") or t.get("transcript", "") or ""
-                    results.append({
-                        "id": meeting_id,
-                        "title": t.get("title", "Meeting Transcript"),
-                        "description": full_text[:300],
-                        "source": meeting_id,
-                        "source_type": "transcript",
-                        "priority": None,
-                        "deadline": None,
-                        "owner": None,
-                        "status": "open",
-                        "dependencies": [],
-                        "blocks": [],
-                        "raw_text": full_text,
-                        "meeting_date": t.get("date", "") or t.get("created_at", ""),
-                        "participants": t.get("participants", []),
-                    })
+                    results.append(
+                        {
+                            "id": meeting_id,
+                            "title": t.get("title", "Meeting Transcript"),
+                            "description": full_text[:300],
+                            "source": meeting_id,
+                            "source_type": "transcript",
+                            "priority": None,
+                            "deadline": None,
+                            "owner": None,
+                            "status": "open",
+                            "dependencies": [],
+                            "blocks": [],
+                            "raw_text": full_text,
+                            "meeting_date": t.get("date", "")
+                            or t.get("created_at", ""),
+                            "participants": t.get("participants", []),
+                        }
+                    )
 
                 page += 1
                 if len(items) < 50:
@@ -220,30 +238,40 @@ class TranscriptConnector(SourceConnector):
 
     def _load_simulated(self) -> list[dict[str, Any]]:
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "transcript.txt"
+
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "meeting_transcript.txt"
         if not path.exists():
             logger.warning("Simulated transcript data not found at %s", path)
             return []
         try:
             with open(path) as f:
                 text = f.read()
-            items = [{
-                "id": "transcript_001",
-                "title": "Sprint Planning — June 19, 2026",
-                "description": text[:300],
-                "source": "transcript_001",
-                "source_type": "transcript",
-                "priority": None,
-                "deadline": None,
-                "owner": None,
-                "status": "open",
-                "dependencies": [],
-                "blocks": [],
-                "raw_text": text,
-                "meeting_date": "2026-06-19T15:00:00Z",
-                "participants": ["Sarah (PM)", "Mike (Tech Lead)", "Jen (Backend)", "Mia (Design)", "Alex (Frontend)"],
-            }]
-            logger.info("Loaded simulated transcript (%d chars)", len(text))
+            items = [
+                {
+                    "id": "transcript_001",
+                    "title": "Sprint 46 Retro + Sprint 47 Kick-off — Jan 12, 2024",
+                    "description": text[:300],
+                    "source": "transcript_001",
+                    "source_type": "transcript",
+                    "priority": None,
+                    "deadline": None,
+                    "owner": None,
+                    "status": "open",
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": text,
+                    "meeting_date": "2024-01-12T14:00:00Z",
+                    "participants": [
+                        "David Park",
+                        "Alex Chen",
+                        "Jordan Lee",
+                        "Priya Sharma",
+                        "Marcus Webb",
+                        "Sarah Mitchell",
+                    ],
+                }
+            ]
+            logger.info("Loaded simulated meeting transcript (%d chars)", len(text))
             return items
         except Exception as e:
             logger.error("Failed to load simulated transcript: %s", e)
@@ -252,22 +280,24 @@ class TranscriptConnector(SourceConnector):
     def normalize(self, raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized = []
         for item in raw:
-            normalized.append({
-                "id": item["id"],
-                "title": item["title"],
-                "description": item.get("description", ""),
-                "source": item["id"],
-                "source_type": "transcript",
-                "priority": item.get("priority"),
-                "deadline": item.get("deadline"),
-                "owner": item.get("owner"),
-                "status": item.get("status", "open"),
-                "dependencies": item.get("dependencies", []),
-                "blocks": item.get("blocks", []),
-                "raw_text": item.get("raw_text", ""),
-                "meeting_date": item.get("meeting_date", ""),
-                "participants": item.get("participants", []),
-            })
+            normalized.append(
+                {
+                    "id": item["id"],
+                    "title": item["title"],
+                    "description": item.get("description", ""),
+                    "source": item["id"],
+                    "source_type": "transcript",
+                    "priority": item.get("priority"),
+                    "deadline": item.get("deadline"),
+                    "owner": item.get("owner"),
+                    "status": item.get("status", "open"),
+                    "dependencies": item.get("dependencies", []),
+                    "blocks": item.get("blocks", []),
+                    "raw_text": item.get("raw_text", ""),
+                    "meeting_date": item.get("meeting_date", ""),
+                    "participants": item.get("participants", []),
+                }
+            )
         return normalized
 
     async def health_check(self) -> bool:

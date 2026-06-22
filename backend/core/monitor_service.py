@@ -1,13 +1,11 @@
 import asyncio
 import logging
 import os
-import time
 from datetime import datetime, timezone
 from dateutil import parser as dp
 
-from core.state import store, save_trace
+from core.state import store
 from core.agent import run_pipeline
-from core.sync_engine import sync_engine
 from core.notification_service import notification_service
 from core.alert_service import alert_service
 
@@ -89,7 +87,10 @@ class MonitorService:
         while self._running:
             try:
                 if self._is_pipeline_stale():
-                    logger.warning("Pipeline stale (>%d min since last run) — auto-refreshing", STALE_THRESHOLD_MINUTES)
+                    logger.warning(
+                        "Pipeline stale (>%d min since last run) — auto-refreshing",
+                        STALE_THRESHOLD_MINUTES,
+                    )
                     await self.ensure_pipeline_fresh(reason="stale_detection")
             except asyncio.CancelledError:
                 break
@@ -119,7 +120,9 @@ class MonitorService:
                     dl = dl.replace(tzinfo=timezone.utc)
                 remaining_h = (dl - now).total_seconds() / 3600
                 if 0 < remaining_h <= 4:
-                    urgent.append(f"{t.id} (\"{t.title[:40]}\") due in ~{int(remaining_h)}h")
+                    urgent.append(
+                        f'{t.id} ("{t.title[:40]}") due in ~{int(remaining_h)}h'
+                    )
             except Exception:
                 continue
         if urgent:
@@ -129,9 +132,12 @@ class MonitorService:
         task_count = len(store.current_tasks)
         has_plan = store.current_plan is not None
         last_run = store.last_run_timestamp or "never"
-        llm_key = bool(os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", ""))
+        llm_key = bool(
+            os.environ.get("LLM_API_KEY") or os.environ.get("XAI_API_KEY", "")
+        )
 
         from core.observability import get_connector_status
+
         connectors = get_connector_status()
         connected_count = sum(1 for c in connectors if c.get("connected", False))
         total_connectors = len(connectors)

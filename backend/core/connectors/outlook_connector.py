@@ -45,7 +45,9 @@ class OutlookConnector(SourceConnector):
 
     async def connect(self) -> bool:
         if not self._client_id or not self._client_secret or not self._tenant_id:
-            logger.warning("Azure credentials not configured (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)")
+            logger.warning(
+                "Azure credentials not configured (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID)"
+            )
             self.connected = False
             self.error = "Missing Azure credentials"
             return False
@@ -83,7 +85,9 @@ class OutlookConnector(SourceConnector):
 
         try:
             while url:
-                resp = await self._client.get(url, params=params if "?" not in url else None)
+                resp = await self._client.get(
+                    url, params=params if "?" not in url else None
+                )
                 resp.raise_for_status()
                 data = resp.json()
 
@@ -102,14 +106,17 @@ class OutlookConnector(SourceConnector):
             self.error = str(e)
             return self._load_simulated()
         except Exception as e:
-            logger.error("Error fetching Outlook emails: %s — falling back to simulated data", e)
+            logger.error(
+                "Error fetching Outlook emails: %s — falling back to simulated data", e
+            )
             self.error = str(e)
             return self._load_simulated()
 
     def _load_simulated(self) -> list[dict[str, Any]]:
         import json
         from pathlib import Path
-        path = Path(__file__).resolve().parent.parent.parent / "data" / "emails.json"
+
+        path = Path(__file__).resolve().parent.parent.parent / "data" / "outlook_emails.json"
         if not path.exists():
             logger.warning("Simulated email data not found at %s", path)
             return []
@@ -118,22 +125,37 @@ class OutlookConnector(SourceConnector):
                 raw = json.load(f)
             normalized = []
             for msg in raw:
-                normalized.append({
-                    "id": msg["id"],
-                    "title": msg["subject"],
-                    "description": msg.get("body_preview", ""),
-                    "source": msg["id"],
-                    "source_type": "email",
-                    "priority": msg.get("priority", "P2"),
-                    "deadline": msg.get("deadline"),
-                    "owner": msg.get("from", ""),
-                    "status": "open",
-                    "dependencies": [],
-                    "blocks": [],
-                    "raw_text": msg.get("body_content", ""),
-                    "from": msg.get("from", ""),
-                    "timestamp": msg.get("receivedDateTime", ""),
-                })
+                sender_name = msg.get("from", {}).get("name", "") if isinstance(msg.get("from"), dict) else msg.get("from", "")
+                sender_email = msg.get("from", {}).get("email", "") if isinstance(msg.get("from"), dict) else msg.get("from", "")
+                sender_str = f"{sender_name} <{sender_email}>" if sender_name and sender_email else (sender_name or sender_email)
+                body_text = msg.get("body", "")
+                priority = "P1" if msg.get("priority") == "high" else ("P2" if msg.get("priority") == "normal" else "P3")
+                vp_escalation = "sarah.mitchell" in sender_email.lower() and "urgent" in msg.get("subject", "").lower()
+                normalized.append(
+                    {
+                        "id": msg["messageId"],
+                        "title": msg["subject"],
+                        "description": body_text[:200] if body_text else "",
+                        "source": msg["messageId"],
+                        "source_type": "email",
+                        "priority": priority,
+                        "deadline": None,
+                        "owner": sender_str,
+                        "status": "open",
+                        "dependencies": [],
+                        "blocks": [],
+                        "raw_text": body_text,
+                        "from": sender_str,
+                        "from_email": sender_email,
+                        "timestamp": msg.get("receivedAt", ""),
+                        "isRead": msg.get("isRead", False),
+                        "hasActionItems": msg.get("hasActionItems", False),
+                        "extractedActionItems": msg.get("extractedActionItems", []),
+                        "category": msg.get("category", ""),
+                        "vp_escalation": vp_escalation,
+                        "customer_facing": "client" in body_text.lower() or "customer" in body_text.lower(),
+                    }
+                )
             logger.info("Loaded %d simulated emails", len(normalized))
             return normalized
         except Exception as e:
@@ -156,22 +178,24 @@ class OutlookConnector(SourceConnector):
             if isinstance(body, dict):
                 body_content = body.get("content", "") or ""
 
-            normalized.append({
-                "id": msg.get("id", ""),
-                "title": msg.get("subject", "(no subject)"),
-                "description": body_preview,
-                "source": msg.get("id", ""),
-                "source_type": "email",
-                "priority": "P2",
-                "deadline": None,
-                "owner": None,
-                "status": "open",
-                "dependencies": [],
-                "blocks": [],
-                "raw_text": body_content,
-                "from": email,
-                "timestamp": msg.get("receivedDateTime", ""),
-            })
+            normalized.append(
+                {
+                    "id": msg.get("id", ""),
+                    "title": msg.get("subject", "(no subject)"),
+                    "description": body_preview,
+                    "source": msg.get("id", ""),
+                    "source_type": "email",
+                    "priority": "P2",
+                    "deadline": None,
+                    "owner": None,
+                    "status": "open",
+                    "dependencies": [],
+                    "blocks": [],
+                    "raw_text": body_content,
+                    "from": email,
+                    "timestamp": msg.get("receivedDateTime", ""),
+                }
+            )
         return normalized
 
     async def health_check(self) -> bool:
