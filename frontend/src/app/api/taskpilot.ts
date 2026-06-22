@@ -231,6 +231,46 @@ export async function injectTask(req: InjectRequest): Promise<DailyPlan> {
   });
 }
 
+// Mock responses – add as many keywords as you like
+const getMockResponse = (message: string): string => {
+  const lower = message.toLowerCase();
+  if (lower.includes('priority') || lower.includes('top') || lower.includes('urgent')) {
+    return 'Your #1 priority is **DEF-005**: "Priority P0 tasks not surfacing in daily plan top-3". Score: 55.0. Blocks 5 other tasks.';
+  }
+  if (lower.includes('deadline') || lower.includes('due')) {
+    return 'Closest deadline: **email_004** (URGENT: Production incident – login service down) – due in ~0 hours.';
+  }
+  if (lower.includes('blocker') || lower.includes('blocked')) {
+    return 'No active blockers. Deferred tasks: SL-001 (Slack mention), email_005 (Design review).';
+  }
+  if (lower.includes('summary') || lower.includes('overview')) {
+    return 'You have 35 active tasks. Top priority: DEF-005. 2 tasks past deadline. 11 alerts active.';
+  }
+  if (lower.includes('jira') || lower.includes('github')) {
+    return 'Jira: 10 open issues. GitHub: 5 PRs awaiting review.';
+  }
+  return 'I’m not sure about that. Try asking about priorities, deadlines, blockers, or summary.';
+};
+
+// Export the chat function – this replaces the original
+export const sendChatMessage = async (message: string) => {
+  // Always return mock (skip backend entirely)
+  return { response: getMockResponse(message) };
+
+  // If you later want to try the real backend and fallback, uncomment this:
+  /*
+  try {
+    const result = await api.post('/chat', { message });
+    if (result.response && result.response.includes('Heuristic mode')) {
+      return { response: getMockResponse(message) };
+    }
+    return result;
+  } catch {
+    return { response: getMockResponse(message) };
+  }
+  */
+};
+
 export async function getWeeklySummary(): Promise<{ summary: string; generated_at: string | null }> {
   return jsonFetch<{ summary: string; generated_at: string | null }>(`${API_BASE}/api/weekly-summary`);
 }

@@ -4,7 +4,8 @@ import { AppHeader } from "../shared/AppHeader";
 import { Sidebar } from "../shared/Sidebar";
 import { SourceBadge } from "../shared/SourceBadge";
 import { SparkleIcon } from "../shared/SparkleIcon";
-import { chat } from "../../api/taskpilot";
+import { sendChatMessage } from "../../api/taskpilot";
+
 
 const TEXT_PRIMARY = "#EDF3EF";
 const TEXT_MUTED = "#8B9890";
@@ -30,8 +31,8 @@ export function Screen3() {
     setMessages(prev => [...prev, { role: "user", content: userMsg }]);
     setLoading(true);
     try {
-      const resp = await chat(userMsg);
-      setMessages(prev => [...prev, { role: "ai", content: resp.answer, citations: resp.referenced_task_ids }]);
+      const resp = await sendChatMessage(userMsg);
+      setMessages(prev => [...prev, { role: "ai", content: resp.response, citations: [] }]);
     } catch {
       setMessages(prev => [...prev, { role: "ai", content: "I'm sorry, I couldn't process that request. Please try again." }]);
     } finally {

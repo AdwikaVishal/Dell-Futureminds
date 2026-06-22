@@ -76,9 +76,11 @@ export function Screen1() {
   }, []);
 
   const handleInjectP1 = async () => {
+    if (injecting) return;
     setInjecting(true);
     try {
-      const res = await fetch("/api/inject", {
+      // Send injection
+      await fetch("/api/inject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -89,14 +91,25 @@ export function Screen1() {
           deadline: new Date(Date.now() + 3600000).toISOString(),
         }),
       });
-      const updatedPlan = await res.json();
-      setPlan(updatedPlan);
-      const injectedTask = [...(updatedPlan.top_priorities ?? []), ...(updatedPlan.do_next ?? [])].find((t: any) => t.source === "injected" || t.source_type === "injected");
+
+      // Refetch WITHOUT clearing state first (prevents blank screen)
+      const [newPlan, newDashboard, newCalendar] = await Promise.all([
+        getPlan(),
+        getDashboard().catch(() => null),
+        getCalendarToday().catch(() => ({ events: [] })),
+      ]);
+
+      if (newPlan) setPlan(newPlan);
+      if (newDashboard) setDashboard(newDashboard);
+      setCalendarEvents(newCalendar?.events || []);
+
+      const injectedTask = [...(newPlan?.top_priorities ?? []), ...(newPlan?.do_next ?? [])].find(
+        (t: any) => t.source === "injected" || t.source_type === "injected",
+      );
       if (injectedTask) {
         setHighlightedId(injectedTask.id);
         setTimeout(() => setHighlightedId(null), 3000);
       }
-      refresh();
     } catch (err) {
       console.error("[Inject] failed:", err);
     } finally {

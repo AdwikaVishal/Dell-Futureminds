@@ -21,7 +21,12 @@ export function DependencyGraph({ tasks }: { tasks: any[] }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
+    // Always reset so we don't keep stale empty graph after state updates.
+    setNodes([]);
+    setEdges([]);
+
     if (!tasks?.length) return;
+
 
     const taskMap = Object.fromEntries(tasks.map((t) => [t.id, t]));
     const newNodes: Node[] = [];
