@@ -1,7 +1,7 @@
 [
   {
     "id": "email_001",
-    "subject": "Sprint review prep — need dashboard by Friday",
+    "subject": "Sprint review prep  need dashboard by Friday",
     "body_preview": "Hey team, the stakeholder demo is on Friday. We need the live metrics dashboard ready with real data. Can we prioritize this over the new feature work?",
     "body_content": "Hey team,\n\nThe stakeholder demo is this Friday at 2pm. We need the live metrics dashboard to be fully functional with real data flowing from all sources. Let's pause new feature development and focus on this.\n\nThanks,\nSarah (PM)",
     "from": "sarah.pm@taskpilot.ai",
@@ -12,7 +12,7 @@
   },
   {
     "id": "email_002",
-    "subject": "RE: API rate limiting — we're hitting GitHub limits",
+    "subject": "RE: API rate limiting  we're hitting GitHub limits",
     "body_preview": "We're getting 429s from GitHub API during sync. Need to implement backoff or reduce poll frequency.",
     "body_content": "The sync engine is hitting GitHub API rate limits every 15 minutes. We need exponential backoff or increase the poll interval to at least 5 minutes. Also, consider using conditional requests with ETags.\n\n- Dev team",
     "from": "dev-team@taskpilot.ai",
@@ -34,7 +34,7 @@
   },
   {
     "id": "email_004",
-    "subject": "URGENT: Production incident — login service down",
+    "subject": "URGENT: Production incident  login service down",
     "body_preview": "Users cannot log in. The auth service is returning 503. Need immediate investigation.",
     "body_content": "Production incident reported at 10:45 UTC. The login service is down, returning 503 errors. All hands on deck — this is blocking all users. Root cause is unknown, possibly database connection pool exhaustion.\n\n-Oncall",
     "from": "oncall@taskpilot.ai",
@@ -56,7 +56,7 @@
   },
   {
     "id": "email_006",
-    "subject": "Database migration script — QA needed",
+    "subject": "Database migration script QA needed",
     "body_preview": "The v2 schema migration script is ready for QA review. Affects users, tasks, and analytics tables.",
     "body_content": "The migration script for schema v2 is ready in the `migrations/v2/` directory. It affects 3 tables: users (adds timezone column), tasks (adds tags column), and analytics (deprecates old metrics). Please QA and sign off before we roll to staging.\n\n-Jen (Backend)",
     "from": "jen.dev@taskpilot.ai",
@@ -67,7 +67,7 @@
   },
   {
     "id": "email_007",
-    "subject": "Weekly sync agenda — June 20",
+    "subject": "Weekly sync agenda  June 20",
     "body_preview": "Agenda: 1) Sprint progress 2) Blockers 3) Demo prep 4) Capacity planning",
     "body_content": "Hi team,\n\nAgenda for this week's sync:\n1. Sprint progress update (10 min)\n2. Blocker discussion (10 min)\n3. Friday stakeholder demo prep (15 min)\n4. Next sprint capacity planning (10 min)\n5. AOB\n\nPlease add your items to the doc before the meeting.\n\n-Sarah",
     "from": "sarah.pm@taskpilot.ai",
@@ -78,7 +78,7 @@
   },
   {
     "id": "email_008",
-    "subject": "VP escalation — customer login issue (JIRA-1234)",
+    "subject": "VP escalation  customer login issue (JIRA-1234)",
     "body_preview": "The VP is asking about the login bug. Need an update by noon.",
     "body_content": "Team,\n\nThe VP just asked about the login issue that was reported yesterday. This is JIRA-1234. She wants a status update and ETA on the fix by noon today. Please prioritize this — it's a P1 now due to customer escalation.\n\nAlso, Adwika, can you prepare a summary of what went wrong for the post-mortem?\n\nThanks,\nSarah (PM)",
     "from": "sarah.pm@taskpilot.ai",
@@ -102,7 +102,7 @@
   },
   {
     "id": "email_010",
-    "subject": "Customer demo prep — Adwika leading the walkthrough",
+    "subject": "Customer demo prep  Adwika leading the walkthrough",
     "body_preview": "Adwika, you're leading the customer demo on Monday. Please prepare the walkthrough script.",
     "body_content": "Adwika,\n\nYou're assigned to lead the customer demo on Monday at 10am. Please prepare a walkthrough script covering:\n- The new dashboard features\n- Task prioritization flow\n- The AI chat assistant\n\nAlso, Saatvika, please ensure the demo environment is stable and has realistic data.\n\nThanks,\nSarah",
     "from": "sarah.pm@taskpilot.ai",
@@ -124,7 +124,7 @@
   },
   {
     "id": "email_012",
-    "subject": "Team lunch — Friday at 1pm",
+    "subject": "Team lunch  Friday at 1pm",
     "body_preview": "We're ordering lunch on Friday. Please RSVP with your preference.",
     "body_content": "Hi everyone,\n\nWe're ordering lunch this Friday at 1pm. Please reply with your preference:\n- Option A: Pizza\n- Option B: Sandwiches\n- Option C: Salad\n\nAlso, Adwika, please bring the sprint retrospective notes so we can review them over lunch.\n\n-Sarah",
     "from": "sarah.pm@taskpilot.ai",
